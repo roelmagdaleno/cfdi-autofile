@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Cloud\Contracts\CloudOAuth;
 use App\Cloud\Data\CloudCredentials;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Exceptions\CloudRequestException;
 
 /**
@@ -30,7 +31,7 @@ final class FakeCloudOAuth implements CloudOAuth
         $this->exchanged[] = $code;
 
         if ($this->fails) {
-            throw CloudRequestException::make('exchange', 400, 'invalid_grant');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'exchange', 400, 'invalid_grant');
         }
 
         return new CloudCredentials($this->refreshToken);

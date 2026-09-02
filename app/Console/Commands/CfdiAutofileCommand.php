@@ -11,10 +11,10 @@ use App\Cfdi\Naming\CounterpartyNamePrompt;
 use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
-use App\Console\Prompts\ConsoleNamePrompt;
+use App\Cloud\CloudSync;
 use App\Cloud\Data\CloudStatus;
 use App\Cloud\Data\CloudSyncResult;
-use App\Cloud\CloudSync;
+use App\Console\Prompts\ConsoleNamePrompt;
 use App\Support\AppSettings;
 use App\Support\Documents\DocumentArchiver;
 use Illuminate\Console\Command;
@@ -147,7 +147,7 @@ final class CfdiAutofileCommand extends Command
 
         // Uploading comes last and cannot fail the command: the files are
         // already renamed and in place.
-        $drive = app(CloudSync::class)->sync($documents);
+        $cloud = app(CloudSync::class)->sync($documents);
 
         $this->newLine();
         $this->line((string) __('console.autofile.output_directory', ['directory' => $result->outputDirectory]));
@@ -156,11 +156,11 @@ final class CfdiAutofileCommand extends Command
         $this->renderTable([...$errorRows, ...$result->rows]);
 
         // The processor's warnings already carry the `  ⚠ {file}: ` prefix;
-        // a Drive warning is about the run as a whole, so it gets the marker
+        // an upload warning is about the run as a whole, so it gets the marker
         // here rather than a file name it does not have.
         $warnings = [
             ...$result->warnings,
-            ...array_map(static fn (string $warning): string => '  ⚠ '.$warning, $drive->warnings),
+            ...array_map(static fn (string $warning): string => '  ⚠ '.$warning, $cloud->warnings),
         ];
 
         if ($warnings !== []) {
@@ -172,7 +172,7 @@ final class CfdiAutofileCommand extends Command
             }
         }
 
-        $this->renderDrive($result, $drive);
+        $this->renderCloudUploads($result, $cloud);
 
         $this->newLine();
         $this->line((string) __('console.autofile.summary', [
@@ -189,25 +189,25 @@ final class CfdiAutofileCommand extends Command
      * Prints nothing at all when the integration is off, so the output of an
      * install that never touched it is byte for byte what it was before.
      */
-    private function renderDrive(ProcessResult $result, CloudSyncResult $drive): void
+    private function renderCloudUploads(ProcessResult $result, CloudSyncResult $cloud): void
     {
-        if ($drive->outcomes === []) {
+        if ($cloud->outcomes === []) {
             return;
         }
 
         $this->newLine();
-        $this->line((string) __('console.autofile.drive.heading'));
+        $this->line((string) __('console.autofile.cloud.heading', ['provider' => $cloud->provider?->label()]));
 
         $uploaded = 0;
 
-        foreach ($drive->outcomes as $index => $outcome) {
+        foreach ($cloud->outcomes as $index => $outcome) {
             $name = $result->rows[$index]->newName ?? $result->rows[$index]->original;
 
             if ($outcome->status === CloudStatus::Uploaded) {
                 $uploaded++;
 
                 $this->output->writeln(
-                    (string) __('console.autofile.drive.uploaded', ['name' => $name, 'link' => (string) $outcome->link]),
+                    (string) __('console.autofile.cloud.uploaded', ['name' => $name, 'link' => (string) $outcome->link]),
                     OutputInterface::OUTPUT_RAW,
                 );
 
@@ -215,15 +215,16 @@ final class CfdiAutofileCommand extends Command
             }
 
             $this->output->writeln(
-                (string) __('console.autofile.drive.not_uploaded', ['name' => $name, 'reason' => (string) $outcome->reason]),
+                (string) __('console.autofile.cloud.not_uploaded', ['name' => $name, 'reason' => (string) $outcome->reason]),
                 OutputInterface::OUTPUT_RAW,
             );
         }
 
         $this->newLine();
-        $this->line((string) __('console.autofile.drive.summary', [
+        $this->line((string) __('console.autofile.cloud.summary', [
             'count' => $uploaded,
-            'total' => count($drive->outcomes),
+            'total' => count($cloud->outcomes),
+            'provider' => $cloud->provider?->label(),
         ]));
     }
 

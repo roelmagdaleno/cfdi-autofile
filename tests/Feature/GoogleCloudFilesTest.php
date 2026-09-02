@@ -1,6 +1,7 @@
 <?php
 
 use App\Cloud\Data\CloudDestination;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudNotConnectedException;
 use App\Cloud\Exceptions\CloudRequestException;
@@ -20,7 +21,7 @@ beforeEach(function (): void {
     config()->set('services.google.client_id', 'client-id');
     config()->set('services.google.client_secret', 'client-secret');
 
-    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+    app(AppSettings::class)->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
 
     $this->files = fn (): GoogleCloudFiles => new GoogleCloudFiles(new GoogleAccessToken(app(AppSettings::class)));
 });
@@ -181,7 +182,7 @@ it('turns a drive error into an exception carrying google\'s own message', funct
 });
 
 it('reports no connection when there is no refresh token', function (): void {
-    app(AppSettings::class)->disconnectDrive();
+    app(AppSettings::class)->disconnectCloud(CloudProvider::GoogleDrive);
 
     expect(fn () => ($this->files)()->accountLabel())->toThrow(CloudNotConnectedException::class);
 
@@ -197,5 +198,5 @@ it('forgets a token google has stopped accepting', function (): void {
     ]);
 
     expect(fn () => ($this->files)()->accountLabel())->toThrow(CloudNotConnectedException::class)
-        ->and(app(AppSettings::class)->isDriveConnected())->toBeFalse();
+        ->and(app(AppSettings::class)->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 });

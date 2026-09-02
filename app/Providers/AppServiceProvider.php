@@ -11,8 +11,7 @@ use App\Cloud\Contracts\CloudOAuth;
 use App\Cloud\Google\Contracts\GoogleFolders;
 use App\Cloud\Google\GoogleAccessToken;
 use App\Cloud\Google\GoogleCloudFiles;
-use App\Cloud\Google\GoogleCloudOAuth;
-use App\Cloud\Google\GoogleDestinations;
+use App\Cloud\Google\GoogleDriveConfig;
 use App\Support\AppSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
@@ -33,15 +32,23 @@ class AppServiceProvider extends ServiceProvider
         // run of twenty invoices performs one token exchange instead of twenty.
         // `GoogleCloudFiles` follows so it shares that one instance.
         $this->app->scoped(GoogleAccessToken::class);
-        $this->app->scoped(CloudFiles::class, GoogleCloudFiles::class);
-        $this->app->bind(CloudOAuth::class, GoogleCloudOAuth::class);
         $this->app->bind(GoogleFolders::class, GoogleCloudFiles::class);
+        $this->app->bind(GoogleDriveConfig::class, fn ($app): GoogleDriveConfig => $app->make(AppSettings::class)->googleDrive());
 
-        // A closure, so resolving the container never reads the `settings` table
-        // on its own -- a boot before the first `migrate` would blow up.
-        $this->app->bind(CloudDestinations::class, fn ($app): GoogleDestinations => new GoogleDestinations(
-            $app->make(GoogleFolders::class),
-            $app->make(AppSettings::class)->drive(),
+        // The active provider names its own classes, so adding one is a case in
+        // the enum rather than an edit here. Closures, so merely resolving the
+        // container never reads the `settings` table -- a boot before the first
+        // `migrate` would blow up.
+        $this->app->scoped(CloudFiles::class, fn ($app): CloudFiles => $app->make(
+            $app->make(AppSettings::class)->cloudProvider()->filesClass(),
+        ));
+
+        $this->app->bind(CloudDestinations::class, fn ($app): CloudDestinations => $app->make(
+            $app->make(AppSettings::class)->cloudProvider()->destinationsClass(),
+        ));
+
+        $this->app->bind(CloudOAuth::class, fn ($app): CloudOAuth => $app->make(
+            $app->make(AppSettings::class)->cloudProvider()->oauthClass(),
         ));
     }
 

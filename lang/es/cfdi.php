@@ -87,10 +87,10 @@ return [
      * las advertencias de la corrida. No llegan al disco, así que llevan
      * acentos.
      */
-    'drive' => [
-        'not_connected' => 'No hay una cuenta de Google conectada. Conéctala en Ajustes.',
-        'no_refresh_token' => 'Google no devolvió un refresh token. Revoca el acceso de la app en tu cuenta de Google y vuelve a conectarla.',
-        'request_failed' => 'Google Drive respondió :status en :operation. :detail',
+    'cloud' => [
+        'not_connected' => 'No hay una cuenta de :provider conectada. Conéctala en Ajustes.',
+        'no_refresh_token' => ':provider no devolvió un refresh token. Revoca el acceso de la app en tu cuenta y vuelve a conectarla.',
+        'request_failed' => ':provider respondió :status en :operation. :detail',
 
         'skipped' => [
             'no_date' => 'No se subió: el CFDI no tiene fecha de emisión, así que no hay año de carpeta.',
@@ -99,7 +99,7 @@ return [
         ],
 
         'warning' => [
-            'some_failed' => ':count archivo(s) no se pudieron subir a Google Drive. Puedes reintentarlo desde la tabla.',
+            'some_failed' => ':count archivo(s) no se pudieron subir a :provider. Puedes reintentarlo desde la tabla.',
         ],
     ],
 

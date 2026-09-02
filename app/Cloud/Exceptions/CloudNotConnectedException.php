@@ -2,6 +2,8 @@
 
 namespace App\Cloud\Exceptions;
 
+use App\Cloud\Data\CloudProvider;
+
 /**
  * There is no usable refresh token: the user never authorized the app, they
  * revoked it, or `APP_KEY` was rotated and the stored token can no longer be
@@ -12,8 +14,8 @@ namespace App\Cloud\Exceptions;
  */
 final class CloudNotConnectedException extends CloudException
 {
-    public static function make(): self
+    public static function make(CloudProvider $provider): self
     {
-        return new self((string) __('cfdi.drive.not_connected'));
+        return new self((string) __('cfdi.cloud.not_connected', ['provider' => $provider->label()]));
     }
 }

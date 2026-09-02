@@ -2,6 +2,7 @@
 
 namespace App\Cloud\Google;
 
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Exceptions\CloudNotConnectedException;
 use App\Cloud\Exceptions\CloudRequestException;
 use App\Support\AppSettings;
@@ -33,10 +34,10 @@ final class GoogleAccessToken
             return $this->token;
         }
 
-        $refreshToken = $this->settings->driveRefreshToken();
+        $refreshToken = $this->settings->credential(CloudProvider::GoogleDrive);
 
         if ($refreshToken === null) {
-            throw CloudNotConnectedException::make();
+            throw CloudNotConnectedException::make(CloudProvider::GoogleDrive);
         }
 
         $response = Http::asForm()->post(self::ENDPOINT, [
@@ -50,19 +51,19 @@ final class GoogleAccessToken
         // account settings. The token we hold is dead, so it is forgotten here:
         // leaving it would show a connected account that cannot connect.
         if ($response->status() === 400 || $response->status() === 401) {
-            $this->settings->disconnectDrive();
+            $this->settings->disconnectCloud(CloudProvider::GoogleDrive);
 
-            throw CloudNotConnectedException::make();
+            throw CloudNotConnectedException::make(CloudProvider::GoogleDrive);
         }
 
         if ($response->failed()) {
-            throw CloudRequestException::make('token', $response->status(), (string) $response->json('error_description', ''));
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'token', $response->status(), (string) $response->json('error_description', ''));
         }
 
         $token = $response->json('access_token');
 
         if (! is_string($token) || $token === '') {
-            throw CloudNotConnectedException::make();
+            throw CloudNotConnectedException::make(CloudProvider::GoogleDrive);
         }
 
         return $this->token = $token;

@@ -1,6 +1,7 @@
 <?php
 
 use App\Cfdi\Naming\TypeLetters;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Setting;
 use App\Support\AppSettings;
@@ -71,60 +72,78 @@ it('overwrites instead of duplicating', function (): void {
     expect(Setting::query()->where('key', 'rfc')->count())->toBe(1);
 });
 
-it('defaults the drive integration to off with the spanish folder names', function (): void {
-    $drive = $this->settings->drive();
+it('defaults the integration to off, on google drive, with the spanish folder names', function (): void {
+    $cloud = $this->settings->cloud();
+    $drive = $this->settings->googleDrive();
 
-    expect($drive->enabled)->toBeFalse()
+    expect($cloud->enabled)->toBeFalse()
+        ->and($cloud->provider)->toBe(CloudProvider::GoogleDrive)
         ->and($drive->rootFolderId)->toBe('root')
         ->and($drive->incomeFolder)->toBe('{year} - Emitidas')
         ->and($drive->expenseFolder)->toBe('{year} - Recibidas')
-        ->and($this->settings->isDriveConnected())->toBeFalse()
-        ->and($this->settings->driveAccountEmail())->toBeNull();
+        ->and($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse()
+        ->and($this->settings->accountLabel(CloudProvider::GoogleDrive))->toBeNull();
 });
 
 it('stores and reads back the drive configuration', function (): void {
-    $this->settings->setDrive(new GoogleDriveConfig(
-        enabled: true,
+    $this->settings->setGoogleDrive(new GoogleDriveConfig(
         rootFolderId: '  1a2b3c  ',
         incomeFolder: '  Emitidas {year}  ',
         expenseFolder: 'Recibidas {year}',
     ));
 
-    $drive = $this->settings->drive();
+    $drive = $this->settings->googleDrive();
 
-    expect($drive->enabled)->toBeTrue()
-        ->and($drive->rootFolderId)->toBe('1a2b3c')
+    expect($drive->rootFolderId)->toBe('1a2b3c')
         ->and($drive->incomeFolder)->toBe('Emitidas {year}')
         ->and($drive->expenseFolder)->toBe('Recibidas {year}');
 });
 
 // A refresh token is a long-lived password for the user's whole Drive.
 it('encrypts the drive refresh token at rest', function (): void {
-    $this->settings->setDriveRefreshToken('super-secret');
+    $this->settings->setCredential(CloudProvider::GoogleDrive, 'super-secret');
 
-    $stored = Setting::query()->where('key', AppSettings::KEY_DRIVE_REFRESH_TOKEN)->value('value');
+    $stored = Setting::query()->where('key', 'cloud_google_drive_'.AppSettings::SUFFIX_CREDENTIAL)->value('value');
 
     expect($stored)->not->toBe('super-secret')
-        ->and($this->settings->driveRefreshToken())->toBe('super-secret');
+        ->and($this->settings->credential(CloudProvider::GoogleDrive))->toBe('super-secret');
 });
 
 // `APP_KEY` was rotated: the token is unrecoverable, and reporting it as "not
 // connected" sends the user to reconnect instead of blowing up mid-run.
 it('treats an undecryptable token as not connected', function (): void {
-    Setting::query()->create(['key' => AppSettings::KEY_DRIVE_REFRESH_TOKEN, 'value' => 'not-encrypted-at-all']);
+    Setting::query()->create(['key' => 'cloud_google_drive_'.AppSettings::SUFFIX_CREDENTIAL, 'value' => 'not-encrypted-at-all']);
 
-    expect($this->settings->driveRefreshToken())->toBeNull()
-        ->and($this->settings->isDriveConnected())->toBeFalse();
+    expect($this->settings->credential(CloudProvider::GoogleDrive))->toBeNull()
+        ->and($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 });
 
 it('keeps the folder configuration when the account is disconnected', function (): void {
-    $this->settings->setDrive(new GoogleDriveConfig(true, '1a2b3c', 'Emitidas {year}', 'Recibidas {year}'));
-    $this->settings->setDriveRefreshToken('super-secret');
-    $this->settings->setDriveAccountEmail('facturas@example.com');
+    $this->settings->setGoogleDrive(new GoogleDriveConfig('1a2b3c', 'Emitidas {year}', 'Recibidas {year}'));
+    $this->settings->setCredential(CloudProvider::GoogleDrive, 'super-secret');
+    $this->settings->setAccountLabel(CloudProvider::GoogleDrive, 'facturas@example.com');
 
-    $this->settings->disconnectDrive();
+    $this->settings->disconnectCloud(CloudProvider::GoogleDrive);
 
-    expect($this->settings->isDriveConnected())->toBeFalse()
-        ->and($this->settings->driveAccountEmail())->toBeNull()
-        ->and($this->settings->drive()->rootFolderId)->toBe('1a2b3c');
+    expect($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse()
+        ->and($this->settings->accountLabel(CloudProvider::GoogleDrive))->toBeNull()
+        ->and($this->settings->googleDrive()->rootFolderId)->toBe('1a2b3c');
+});
+
+// A row somebody edited by hand must not take the settings screen down with it.
+it('falls back to the default provider when the stored one is unreadable', function (): void {
+    Setting::query()->create(['key' => AppSettings::KEY_CLOUD_PROVIDER, 'value' => 'dropbox-someday']);
+
+    expect($this->settings->cloudProvider())->toBe(CloudProvider::default());
+});
+
+// What makes switching platforms cheap: connecting one provider says nothing
+// about any other, so the ids and tokens of the old one survive the switch.
+it('keeps credentials in a namespace of their own provider', function (): void {
+    $this->settings->setCredential(CloudProvider::GoogleDrive, 'google-secret');
+
+    expect($this->settings->credential(CloudProvider::GoogleDrive))->toBe('google-secret');
+
+    $this->assertDatabaseHas('settings', ['key' => 'cloud_google_drive_credential']);
+    $this->assertDatabaseMissing('settings', ['key' => 'cloud_credential']);
 });

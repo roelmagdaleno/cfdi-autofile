@@ -49,8 +49,8 @@ use Livewire\WithFileUploads;
  * @property-read TypeLetters $typeLetters
  * @property-read string|null $downloadUrl
  * @property-read Collection<int, RunFile> $allRows
- * @property-read bool $hasFailedDriveUploads
- * @property-read bool $showsDriveColumn
+ * @property-read bool $hasFailedCloudUploads
+ * @property-read bool $showsCloudColumn
  */
 final class RunCfdis extends Component
 {
@@ -360,7 +360,7 @@ final class RunCfdis extends Component
      * Only failures are retried, never skips: a CFDI with no issue date has no
      * folder to go to, and asking again would produce the same answer.
      */
-    public function retryDrive(CloudSync $sync): void
+    public function retryCloudUploads(CloudSync $sync): void
     {
         $failed = RunFile::query()
             ->with('document')
@@ -389,14 +389,14 @@ final class RunCfdis extends Component
 
         unset($this->allRows);
 
-        Flux::toast(variant: 'success', text: __('ui.drive.retried'));
+        Flux::toast(variant: 'success', text: __('ui.cloud.retried'));
     }
 
     /**
      * Whether any row of this run is worth retrying.
      */
     #[Computed]
-    public function hasFailedDriveUploads(): bool
+    public function hasFailedCloudUploads(): bool
     {
         if ($this->runId === '') {
             return false;
@@ -413,7 +413,7 @@ final class RunCfdis extends Component
      * the integration was off for this run.
      */
     #[Computed]
-    public function showsDriveColumn(): bool
+    public function showsCloudColumn(): bool
     {
         if ($this->runId === '') {
             return false;

@@ -91,7 +91,7 @@
                             @endif
 
                             @if ($document->isOnDrive())
-                                <flux:tooltip :content="__('ui.drive.open')">
+                                <flux:tooltip :content="__('ui.cloud.open', ['provider' => __('ui.cloud.provider.google_drive')])">
                                     <flux:button
                                         :href="$document->drive_link"
                                         target="_blank"

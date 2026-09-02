@@ -6,6 +6,7 @@ use App\Cfdi\Data\TypeLetter;
 use App\Cloud\Contracts\CloudDestinations;
 use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Data\CloudOutcome;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudStatus;
 use App\Cloud\Data\CloudSyncResult;
 use App\Cloud\Data\CloudUpload;
@@ -48,7 +49,7 @@ final class CloudSync
      */
     public function sync(array $documents): CloudSyncResult
     {
-        $config = $this->settings->drive();
+        $config = $this->settings->cloud();
 
         // Off, or nothing to do: not a single byte reaches the network.
         if (! $config->enabled || $documents === []) {
@@ -57,17 +58,20 @@ final class CloudSync
 
         // Checked once, up front: without a token every single file would fail
         // for the same reason, and twenty identical rows help nobody.
-        if (! $this->settings->isDriveConnected()) {
-            return $this->allFailed($documents, (string) __('cfdi.drive.not_connected'));
+        if (! $this->settings->isCloudConnected($config->provider)) {
+            return $this->allFailed($documents, (string) __('cfdi.cloud.not_connected', [
+                'provider' => $config->provider->label(),
+            ]), $config->provider);
         }
 
+        $provider = $config->provider;
         $outcomes = [];
 
         foreach ($documents as $key => $document) {
             $outcomes[$key] = $this->syncOne($document);
         }
 
-        return new CloudSyncResult($outcomes, $this->warningsFor($outcomes));
+        return new CloudSyncResult($outcomes, $this->warningsFor($outcomes, $provider), $provider);
     }
 
     private function syncOne(Document $document): CloudOutcome
@@ -75,7 +79,7 @@ final class CloudSync
         // The command indexes files that live on the user's disk, so one can be
         // moved or deleted between the run and the upload.
         if (! $document->fileExists()) {
-            return CloudOutcome::skipped((string) __('cfdi.drive.skipped.missing_file'));
+            return CloudOutcome::skipped((string) __('cfdi.cloud.skipped.missing_file'));
         }
 
         try {
@@ -118,7 +122,7 @@ final class CloudSync
     /**
      * @param  array<int, Document>  $documents
      */
-    private function allFailed(array $documents, string $reason): CloudSyncResult
+    private function allFailed(array $documents, string $reason, CloudProvider $provider): CloudSyncResult
     {
         $outcomes = [];
 
@@ -126,7 +130,7 @@ final class CloudSync
             $outcomes[$key] = CloudOutcome::failed($reason);
         }
 
-        return new CloudSyncResult($outcomes, [$reason]);
+        return new CloudSyncResult($outcomes, [$reason], $provider);
     }
 
     /**
@@ -136,7 +140,7 @@ final class CloudSync
      * @param  array<int, CloudOutcome>  $outcomes
      * @return list<string>
      */
-    private function warningsFor(array $outcomes): array
+    private function warningsFor(array $outcomes, CloudProvider $provider): array
     {
         $failed = array_filter($outcomes, fn (CloudOutcome $o): bool => $o->status === CloudStatus::Failed);
 
@@ -144,6 +148,9 @@ final class CloudSync
             return [];
         }
 
-        return [(string) __('cfdi.drive.warning.some_failed', ['count' => count($failed)])];
+        return [(string) __('cfdi.cloud.warning.some_failed', [
+            'count' => count($failed),
+            'provider' => $provider->label(),
+        ])];
     }
 }

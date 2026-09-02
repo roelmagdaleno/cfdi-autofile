@@ -84,10 +84,10 @@ return [
      * Reasons that end up in the "Drive" column of the results table and in the
      * run's warnings.
      */
-    'drive' => [
-        'not_connected' => 'No Google account is connected. Connect one in Settings.',
-        'no_refresh_token' => 'Google did not return a refresh token. Revoke the app in your Google account and connect it again.',
-        'request_failed' => 'Google Drive answered :status on :operation. :detail',
+    'cloud' => [
+        'not_connected' => 'No :provider account is connected. Connect one in Settings.',
+        'no_refresh_token' => ':provider did not return a refresh token. Revoke the app in your account and connect it again.',
+        'request_failed' => ':provider answered :status on :operation. :detail',
 
         'skipped' => [
             'no_date' => 'Not uploaded: the CFDI has no issue date, so there is no year to file it under.',
@@ -96,7 +96,7 @@ return [
         ],
 
         'warning' => [
-            'some_failed' => ':count file(s) could not be uploaded to Google Drive. You can retry from the table.',
+            'some_failed' => ':count file(s) could not be uploaded to :provider. You can retry from the table.',
         ],
     ],
 

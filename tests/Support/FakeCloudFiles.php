@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Data\CloudFile;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudRequestException;
 use App\Cloud\Google\Contracts\GoogleFolders;
@@ -68,7 +69,7 @@ final class FakeCloudFiles implements CloudFiles, GoogleFolders
         $this->lookups[] = ['parent' => $parentId, 'name' => $name];
 
         if ($this->failFolder === $name) {
-            throw CloudRequestException::make('find_folder', 500, 'boom');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'find_folder', 500, 'boom');
         }
 
         if (isset($this->folders[$name])) {
@@ -83,7 +84,7 @@ final class FakeCloudFiles implements CloudFiles, GoogleFolders
     public function put(CloudUpload $upload): CloudFile
     {
         if ($this->failUpload === $upload->name) {
-            throw CloudRequestException::make('upload', 403, 'storageQuotaExceeded');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'upload', 403, 'storageQuotaExceeded');
         }
 
         // Same recovery the real provider does: an id that no longer resolves
@@ -106,7 +107,7 @@ final class FakeCloudFiles implements CloudFiles, GoogleFolders
     public function accountLabel(): string
     {
         if ($this->failAbout) {
-            throw CloudRequestException::make('about', 503, 'backendError');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'about', 503, 'backendError');
         }
 
         return $this->email;

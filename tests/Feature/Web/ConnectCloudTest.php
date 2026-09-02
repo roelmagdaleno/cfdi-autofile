@@ -1,6 +1,7 @@
 <?php
 
 use App\Cloud\Contracts\CloudOAuth;
+use App\Cloud\Data\CloudProvider;
 use App\Http\Controllers\ConnectCloudController;
 use App\Support\AppSettings;
 use Tests\Support\FakeCloudOAuth;
@@ -20,7 +21,7 @@ beforeEach(function (): void {
 });
 
 it('redirects to google with a state it remembers', function (): void {
-    $response = $this->get(route('drive.connect'));
+    $response = $this->get(route('cloud.google_drive.connect'));
 
     $state = session(ConnectCloudController::STATE_KEY);
 
@@ -34,9 +35,9 @@ it('redirects to google with a state it remembers', function (): void {
 it('sends the user back when the oauth client is not configured', function (mixed $value): void {
     config()->set('services.google.client_id', $value);
 
-    $this->get(route('drive.connect'))
+    $this->get(route('cloud.google_drive.connect'))
         ->assertRedirect(route('settings.edit'))
-        ->assertSessionHas('drive_error');
+        ->assertSessionHas('cloud_error');
 })->with([
     'missing' => [null],
     // The keys ship in `.env.example` with an empty value, which reads as
@@ -48,37 +49,37 @@ it('sends the user back when the oauth client is not configured', function (mixe
 // token is stored. Nothing pre-seeds it here, so this proves that resolution.
 it('stores the refresh token and the account when google returns a code', function (): void {
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
         ->assertRedirect(route('settings.edit'))
-        ->assertSessionHas('drive_status');
+        ->assertSessionHas('cloud_status');
 
     expect($this->authenticator->exchanged)->toBe(['auth-code'])
-        ->and($this->settings->driveRefreshToken())->toBe('refresh-token-abc')
-        ->and($this->settings->driveAccountEmail())->toBe('facturas@example.com')
-        ->and($this->settings->isDriveConnected())->toBeTrue();
+        ->and($this->settings->credential(CloudProvider::GoogleDrive))->toBe('refresh-token-abc')
+        ->and($this->settings->accountLabel(CloudProvider::GoogleDrive))->toBe('facturas@example.com')
+        ->and($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeTrue();
 });
 
 // A refresh token is a long-lived password for the user's whole Drive.
 it('never stores the refresh token in the clear', function (): void {
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']));
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']));
 
     $this->assertDatabaseMissing('settings', [
-        'key' => AppSettings::KEY_DRIVE_REFRESH_TOKEN,
+        'key' => 'cloud_google_drive_'.AppSettings::SUFFIX_CREDENTIAL,
         'value' => 'refresh-token-abc',
     ]);
 
-    expect($this->settings->driveRefreshToken())->toBe('refresh-token-abc');
+    expect($this->settings->credential(CloudProvider::GoogleDrive))->toBe('refresh-token-abc');
 });
 
 // Without the state check anyone could hand the user a crafted callback URL and
 // connect an account of their choosing.
 it('refuses a callback whose state does not match the session', function (string $session, array $query): void {
     $this->withSession([ConnectCloudController::STATE_KEY => $session])
-        ->get(route('drive.callback', $query))
+        ->get(route('cloud.google_drive.callback', $query))
         ->assertForbidden();
 
-    expect($this->settings->isDriveConnected())->toBeFalse();
+    expect($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 })->with([
     'different state' => ['the-state', ['code' => 'auth-code', 'state' => 'other']],
     'no state in the query' => ['the-state', ['code' => 'auth-code']],
@@ -87,31 +88,31 @@ it('refuses a callback whose state does not match the session', function (string
 
 it('sends the user back when they decline the consent screen', function (): void {
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['error' => 'access_denied', 'state' => 'the-state']))
+        ->get(route('cloud.google_drive.callback', ['error' => 'access_denied', 'state' => 'the-state']))
         ->assertRedirect(route('settings.edit'))
-        ->assertSessionHas('drive_error');
+        ->assertSessionHas('cloud_error');
 
-    expect($this->settings->isDriveConnected())->toBeFalse();
+    expect($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 });
 
 it('reports a failed exchange instead of throwing', function (): void {
     app()->instance(CloudOAuth::class, new FakeCloudOAuth(fails: true));
 
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
         ->assertRedirect(route('settings.edit'))
-        ->assertSessionHas('drive_error');
+        ->assertSessionHas('cloud_error');
 
-    expect($this->settings->isDriveConnected())->toBeFalse();
+    expect($this->settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 });
 
 // The state is single-use: replaying the same callback must not work.
 it('consumes the state so a callback cannot be replayed', function (): void {
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
         ->assertRedirect(route('settings.edit'));
 
-    $this->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
+    $this->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
         ->assertForbidden();
 });
 
@@ -119,13 +120,13 @@ it('consumes the state so a callback cannot be replayed', function (): void {
 // the only thing that catches a mistyped Flux component in that branch.
 it('renders the settings screen with the outcome after coming back', function (): void {
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']));
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']));
 
     $this->followingRedirects()
         ->withSession([ConnectCloudController::STATE_KEY => 'other'])
         ->get(route('settings.edit'))
         ->assertOk()
-        ->assertSee(__('ui.drive.heading'))
+        ->assertSee(__('ui.cloud.heading'))
         ->assertSee('facturas@example.com');
 });
 
@@ -134,7 +135,7 @@ it('renders the error callout when the connection failed', function (): void {
 
     $this->withSession([ConnectCloudController::STATE_KEY => 'the-state'])
         ->followingRedirects()
-        ->get(route('drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
+        ->get(route('cloud.google_drive.callback', ['code' => 'auth-code', 'state' => 'the-state']))
         ->assertOk()
         ->assertSee('invalid_grant');
 });
@@ -146,16 +147,16 @@ it('renders the error callout when the connection failed', function (): void {
 it('refuses to start the handshake from a host the callback will not return to', function (): void {
     config()->set('services.google.redirect', 'http://localhost:8000/drive/callback');
 
-    $this->get(route('drive.connect'))
+    $this->get(route('cloud.google_drive.connect'))
         ->assertRedirect(route('settings.edit'))
-        ->assertSessionHas('drive_error', fn (string $message): bool => str_contains($message, 'http://localhost:8000/settings'));
+        ->assertSessionHas('cloud_error', fn (string $message): bool => str_contains($message, 'http://localhost:8000/settings'));
 
     // Nothing was started, so there is no dangling state either.
     expect(session(ConnectCloudController::STATE_KEY))->toBeNull();
 });
 
 it('starts the handshake when the host matches the callback', function (): void {
-    $this->get(route('drive.connect'))
+    $this->get(route('cloud.google_drive.connect'))
         ->assertRedirect('https://accounts.google.com/o/oauth2/v2/auth?state='.session(ConnectCloudController::STATE_KEY));
 });
 
@@ -165,6 +166,6 @@ it('ignores the default port when comparing hosts', function (): void {
     $host = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
     config()->set('services.google.redirect', "http://{$host}:80/drive/callback");
 
-    $this->get(route('drive.connect'))
+    $this->get(route('cloud.google_drive.connect'))
         ->assertRedirect('https://accounts.google.com/o/oauth2/v2/auth?state='.session(ConnectCloudController::STATE_KEY));
 });

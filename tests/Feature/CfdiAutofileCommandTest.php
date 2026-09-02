@@ -384,7 +384,7 @@ it('does not index rejected files', function (): void {
 });
 
 it('uploads to drive from the command line', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 
     $result = runAutofile([
@@ -422,7 +422,7 @@ it('says nothing about drive while the integration is off', function (): void {
 // The command indexes the file where `--output` put it, without an archived
 // copy, so this proves the upload reads the right path in that mode.
 it('uploads the file the command left on disk, not an archived copy', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 
     runAutofile([
@@ -439,7 +439,7 @@ it('uploads the file the command left on disk, not an archived copy', function (
 });
 
 it('reports an upload it could not do without failing the command', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     $files->failUpload = '2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml';
     stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 

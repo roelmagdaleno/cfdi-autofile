@@ -3,11 +3,13 @@
 namespace App\Cloud\Google;
 
 /**
- * The part of the Drive integration the settings form edits.
+ * Where in Drive the files go: the folder that holds the year folders, and the
+ * names of the two year folders themselves.
  *
- * It deliberately carries no credentials: the refresh token is read and written
- * through its own accessors on `AppSettings`, so a form submission can never
- * blank it out by accident.
+ * All of it is Drive's own shape, which is why it is configured apart from
+ * `CloudConfig` and read through its own accessor. It deliberately carries no
+ * credentials either: the refresh token has its own accessors, so a form
+ * submission can never blank it out by accident.
  */
 final readonly class GoogleDriveConfig
 {
@@ -19,7 +21,6 @@ final readonly class GoogleDriveConfig
     public const string DEFAULT_EXPENSE_FOLDER = '{year} - Recibidas';
 
     public function __construct(
-        public bool $enabled,
         public string $rootFolderId,
         public string $incomeFolder,
         public string $expenseFolder,
@@ -28,7 +29,6 @@ final readonly class GoogleDriveConfig
     public static function defaults(): self
     {
         return new self(
-            enabled: false,
             rootFolderId: self::ROOT,
             incomeFolder: self::DEFAULT_INCOME_FOLDER,
             expenseFolder: self::DEFAULT_EXPENSE_FOLDER,

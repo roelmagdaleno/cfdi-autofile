@@ -400,7 +400,7 @@ it('offers a download for every archived file from the table', function (): void
 
 it('uploads the run to drive and records the link on the run and the document', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $runId = Livewire::test(RunCfdis::class)
         ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
@@ -439,7 +439,7 @@ it('leaves the drive columns alone while the integration is off', function (): v
 // still has to be written: the insert is a single bulk statement.
 it('leaves the drive columns empty on a discarded file', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
-    fakeDrive();
+    fakeCloud();
 
     $runId = Livewire::test(RunCfdis::class)
         ->set('files', [
@@ -457,7 +457,7 @@ it('leaves the drive columns empty on a discarded file', function (): void {
 
 it('records the reason and warns when an upload fails', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
-    $files = fakeDrive();
+    $files = fakeCloud();
     $files->failUpload = '2026-02-14 G CONTADOR - 11600.00.xml';
 
     $component = Livewire::test(RunCfdis::class)
@@ -476,17 +476,17 @@ it('records the reason and warns when an upload fails', function (): void {
 
 it('retries only the failed uploads', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
-    $files = fakeDrive();
+    $files = fakeCloud();
     $files->failUpload = '2026-02-14 G CONTADOR - 11600.00.xml';
 
     $component = Livewire::test(RunCfdis::class)
         ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
-        ->assertSee(__('ui.drive.retry'));
+        ->assertSee(__('ui.cloud.retry'));
 
     $files->failUpload = null;
 
-    $component->call('retryDrive');
+    $component->call('retryCloudUploads');
 
     $runFile = Run::query()->findOrFail($component->get('runId'))->files->sole();
 
@@ -497,12 +497,12 @@ it('retries only the failed uploads', function (): void {
 
 it('offers no retry when nothing failed', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
-    fakeDrive();
+    fakeCloud();
 
     Livewire::test(RunCfdis::class)
         ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertSet('step', 'results')
-        ->assertDontSee(__('ui.drive.retry'))
-        ->assertSee(__('ui.drive.open'));
+        ->assertDontSee(__('ui.cloud.retry'))
+        ->assertSee(__('ui.cloud.open', ['provider' => 'Google Drive']));
 });

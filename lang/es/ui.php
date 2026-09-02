@@ -113,36 +113,49 @@ return [
         'start_over' => 'Procesar otros archivos',
     ],
 
-    'drive' => [
-        'heading' => 'Google Drive',
-        'subheading' => 'Sube a tu Drive los CFDIs que se procesaron bien, ordenados por año y por tipo.',
-        'enable' => 'Subir a Google Drive',
+    'cloud' => [
+        'heading' => 'Almacenamiento en la nube',
+        'subheading' => 'Sube a :provider los CFDIs que se procesaron bien, ordenados por año y por tipo.',
+        'provider_label' => 'Proveedor',
+        'enable' => 'Subir a :provider',
         'enable_description' => 'Apagado, nada sale de esta máquina y el resto de la app funciona igual.',
-        'connected_as' => 'Conectado como :email',
-        'not_connected' => 'Todavía no has conectado una cuenta de Google.',
-        'connect' => 'Conectar con Google',
+        'connected_as' => 'Conectado como :account',
+        'not_connected' => 'Todavía no has conectado una cuenta de :provider.',
+        'connect' => 'Conectar con :provider',
         'reconnect' => 'Reconectar',
         'disconnect' => 'Desconectar',
-        'disconnected' => 'Se desconectó la cuenta de Google.',
-        'connected' => 'Cuenta conectada: :email',
-        'connected_unknown' => 'Cuenta de Google conectada.',
-        'cancelled' => 'No se autorizó el acceso a Google Drive.',
-        'invalid_state' => 'La respuesta de Google no corresponde a esta sesión.',
-        'missing_credentials' => 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el archivo .env.',
-        'wrong_host' => 'Google no acepta dominios .test, así que el callback vuelve a :host. Abre :url para conectar la cuenta desde ahí (arranca el servidor con «php artisan serve»). Una vez conectada, la integración funciona igual desde este dominio.',
-        'root_folder_label' => 'Carpeta raíz',
-        'root_folder_description' => 'El ID de la carpeta que contiene tus carpetas de año. Se saca de la URL de la carpeta en Drive. Déjalo vacío para usar el tope de «Mi unidad».',
+        'disconnected' => 'Se desconectó la cuenta de :provider.',
+        'connected' => 'Cuenta conectada: :account',
+        'connected_unknown' => 'Cuenta de :provider conectada.',
+        'cancelled' => 'No se autorizó el acceso a :provider.',
+        'invalid_state' => 'La respuesta del proveedor no corresponde a esta sesión.',
         'income_folder_label' => 'Carpeta de emitidas',
         'expense_folder_label' => 'Carpeta de recibidas',
         'folders_description' => 'Usa :token donde vaya el año. Las carpetas que falten se crean solas.',
         'preview' => 'Este año se usarían',
         'verify' => 'Verificar carpetas',
         'verified' => 'Listo: :income y :expense.',
-        'scope_notice' => 'Google pide el permiso completo de Drive porque el permiso reducido no puede ver carpetas que no creó esta app. Deja la pantalla de consentimiento en modo «Testing» con tu cuenta como usuario de prueba.',
-        'column' => 'Drive',
-        'open' => 'Ver en Drive',
+        'column' => 'Nube',
+        'open' => 'Ver en :provider',
         'retry' => 'Reintentar subida',
         'retried' => 'Se reintentó la subida.',
+
+        // El nombre visible de cada proveedor vive aquí y en ningún otro lado:
+        // es lo que lee `CloudProvider::label()`, que es lo que hace que todos
+        // los `:provider` de arriba digan lo correcto de una sola vez.
+        'provider' => [
+            'google_drive' => 'Google Drive',
+        ],
+
+        // Texto que solo es CIERTO de un proveedor. Una frase cuya forma es la
+        // misma para todos va arriba con un marcador :provider.
+        'google_drive' => [
+            'root_folder_label' => 'Carpeta raíz',
+            'root_folder_description' => 'El ID de la carpeta que contiene tus carpetas de año. Se saca de la URL de la carpeta en Drive. Déjalo vacío para usar el tope de «Mi unidad».',
+            'scope_notice' => 'Google pide el permiso completo de Drive porque el permiso reducido no puede ver carpetas que no creó esta app. Deja la pantalla de consentimiento en modo «Testing» con tu cuenta como usuario de prueba.',
+            'missing_credentials' => 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el archivo .env.',
+            'wrong_host' => 'Google no acepta dominios .test, así que el callback vuelve a :host. Abre :url para conectar la cuenta desde ahí (arranca el servidor con «php artisan serve»). Una vez conectada, la integración funciona igual desde este dominio.',
+        ],
 
         'status' => [
             'uploaded' => 'Subido',
@@ -183,8 +196,8 @@ return [
             'item_required' => 'Alguno de los archivos no se subió bien.',
             'item_max' => 'Cada archivo debe pesar máximo 20 MB.',
         ],
-        'drive' => [
-            'not_connected' => 'Conecta una cuenta de Google antes de activar la integración.',
+        'cloud' => [
+            'not_connected' => 'Conecta una cuenta de :provider antes de activar la integración.',
             'folder_required' => 'Escribe un nombre de carpeta.',
             'folder_token' => 'El nombre de la carpeta debe incluir :token, o todos los años irían a la misma carpeta.',
             'folder_max' => 'El nombre de la carpeta debe tener máximo :max caracteres.',

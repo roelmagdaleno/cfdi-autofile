@@ -4,6 +4,7 @@ namespace App\Cloud\Google;
 
 use App\Cloud\Contracts\CloudOAuth;
 use App\Cloud\Data\CloudCredentials;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Exceptions\CloudRequestException;
 use Illuminate\Support\Facades\Http;
 
@@ -54,6 +55,7 @@ final class GoogleCloudOAuth implements CloudOAuth
 
         if ($response->failed()) {
             throw CloudRequestException::make(
+                CloudProvider::GoogleDrive,
                 'exchange',
                 $response->status(),
                 (string) $response->json('error_description', ''),
@@ -63,7 +65,7 @@ final class GoogleCloudOAuth implements CloudOAuth
         $refreshToken = $response->json('refresh_token');
 
         if (! is_string($refreshToken) || $refreshToken === '') {
-            throw CloudRequestException::make('exchange', $response->status(), (string) __('cfdi.drive.no_refresh_token'));
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'exchange', $response->status(), (string) __('cfdi.cloud.no_refresh_token', ['provider' => CloudProvider::GoogleDrive->label()]));
         }
 
         // The account's address is deliberately NOT read here: see

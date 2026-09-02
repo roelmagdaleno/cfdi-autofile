@@ -32,11 +32,11 @@ return [
         'ask_rfc' => 'Tu RFC (se guarda para la proxima): ',
         'rfc_required' => 'Error: se necesita tu RFC para saber quien es la contraparte.',
 
-        'drive' => [
-            'heading' => 'Google Drive:',
+        'cloud' => [
+            'heading' => ':provider:',
             'uploaded' => '  :name -> :link',
             'not_uploaded' => '  :name: :reason',
-            'summary' => ':count/:total subidos a Google Drive.',
+            'summary' => ':count/:total subidos a :provider.',
         ],
 
         'table' => [

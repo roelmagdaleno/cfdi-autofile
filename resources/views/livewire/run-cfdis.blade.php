@@ -348,8 +348,8 @@
                 <flux:table.column>{{ __('ui.common.status') }}</flux:table.column>
                 <flux:table.column>{{ __('ui.common.original') }}</flux:table.column>
                 <flux:table.column>{{ __('ui.common.new_name') }}</flux:table.column>
-                @if ($this->showsDriveColumn)
-                    <flux:table.column>{{ __('ui.drive.column') }}</flux:table.column>
+                @if ($this->showsCloudColumn)
+                    <flux:table.column>{{ __('ui.cloud.column') }}</flux:table.column>
                 @endif
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
@@ -376,11 +376,11 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="font-mono text-xs whitespace-normal break-words">{{ $row->new_name ?? '—' }}</flux:table.cell>
-                        @if ($this->showsDriveColumn)
+                        @if ($this->showsCloudColumn)
                             <flux:table.cell class="max-w-xs whitespace-normal break-words">
                                 @if ($row->drive_link !== null)
                                     <flux:link :href="$row->drive_link" target="_blank" class="text-xs">
-                                        {{ __('ui.drive.open') }}
+                                        {{ __('ui.cloud.open', ['provider' => __('ui.cloud.provider.google_drive')]) }}
                                     </flux:link>
                                 @elseif ($status = $row->driveStatus())
                                     <flux:text variant="subtle" class="text-xs">{{ $status->label() }}</flux:text>
@@ -403,7 +403,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell :colspan="$this->showsDriveColumn ? 5 : 4">{{ __('ui.run.no_files') }}</flux:table.cell>
+                        <flux:table.cell :colspan="$this->showsCloudColumn ? 5 : 4">{{ __('ui.run.no_files') }}</flux:table.cell>
                     </flux:table.row>
                 @endforelse
             </flux:table.rows>
@@ -438,15 +438,15 @@
                 </flux:button>
             @endif
 
-            @if ($this->hasFailedDriveUploads)
+            @if ($this->hasFailedCloudUploads)
                 <flux:button
                     variant="filled"
                     icon="arrow-path"
-                    wire:click="retryDrive"
+                    wire:click="retryCloudUploads"
                     wire:loading.attr="disabled"
-                    wire:target="retryDrive"
+                    wire:target="retryCloudUploads"
                 >
-                    {{ __('ui.drive.retry') }}
+                    {{ __('ui.cloud.retry') }}
                 </flux:button>
             @endif
 

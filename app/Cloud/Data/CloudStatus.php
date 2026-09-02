@@ -23,7 +23,7 @@ enum CloudStatus: string
 
     public function label(): string
     {
-        return (string) __('ui.drive.status.'.$this->value);
+        return (string) __('ui.cloud.status.'.$this->value);
     }
 
     public function isRetryable(): bool

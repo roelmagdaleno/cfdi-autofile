@@ -15,7 +15,7 @@
         {{--
             The template card is a container with several inputs, so it does NOT
             use `flux:field`: a `flux:label` inside one binds to the first input
-            of the block. It is a labelled group instead, like the Drive card.
+            of the block. It is a labelled group instead, like the cloud card.
         --}}
         <div
             role="group"
@@ -153,43 +153,56 @@
         </div>
 
         {{--
-            The Drive card is a container with several inputs, so it does NOT use
+            The cloud card is a container with several inputs, so it does NOT use
             `flux:field`: a `flux:label` inside one binds to the first input of
             the block. It is a labelled group instead.
+
+            The provider's own fields sit behind a check on which provider is
+            selected, so a second provider is a branch added next to this one
+            rather than an edit to it.
         --}}
+        @php($providerLabel = __('ui.cloud.provider.'.$cloudProvider))
         <div
             role="group"
-            aria-label="{{ __('ui.drive.heading') }}"
+            aria-label="{{ __('ui.cloud.heading') }}"
             class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-white/10"
         >
             <div>
-                <flux:heading size="sm">{{ __('ui.drive.heading') }}</flux:heading>
-                <flux:text variant="subtle" class="mt-1 text-xs">{{ __('ui.drive.subheading') }}</flux:text>
+                <flux:heading size="sm">{{ __('ui.cloud.heading') }}</flux:heading>
+                <flux:text variant="subtle" class="mt-1 text-xs">
+                    {{ __('ui.cloud.subheading', ['provider' => $providerLabel]) }}
+                </flux:text>
             </div>
 
-            @if (session('drive_status'))
-                <flux:callout variant="success" icon="check-circle" :heading="session('drive_status')" />
+            @if (session('cloud_status'))
+                <flux:callout variant="success" icon="check-circle" :heading="session('cloud_status')" />
             @endif
 
-            @if (session('drive_error'))
-                <flux:callout variant="danger" icon="exclamation-triangle" :heading="session('drive_error')" />
+            @if (session('cloud_error'))
+                <flux:callout variant="danger" icon="exclamation-triangle" :heading="session('cloud_error')" />
             @endif
+
+            <flux:select wire:model.live="cloudProvider" :label="__('ui.cloud.provider_label')">
+                @foreach (\App\Cloud\Data\CloudProvider::cases() as $provider)
+                    <flux:select.option :value="$provider->value">{{ $provider->label() }}</flux:select.option>
+                @endforeach
+            </flux:select>
 
             <flux:switch
-                wire:model.live="driveEnabled"
-                :label="__('ui.drive.enable')"
-                :description="__('ui.drive.enable_description')"
+                wire:model.live="cloudEnabled"
+                :label="__('ui.cloud.enable', ['provider' => $providerLabel])"
+                :description="__('ui.cloud.enable_description')"
             />
 
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
                 <flux:text class="text-sm">
-                    @if ($driveConnected && $driveEmail !== '')
-                        {{ __('ui.drive.connected_as', ['email' => $driveEmail]) }}
-                    @elseif ($driveConnected)
-                        {{-- Connected, but Drive would not say which account. --}}
-                        {{ __('ui.drive.connected_unknown') }}
+                    @if ($cloudConnected && $cloudAccount !== '')
+                        {{ __('ui.cloud.connected_as', ['account' => $cloudAccount]) }}
+                    @elseif ($cloudConnected)
+                        {{-- Connected, but the provider would not say which account. --}}
+                        {{ __('ui.cloud.connected_unknown', ['provider' => $providerLabel]) }}
                     @else
-                        {{ __('ui.drive.not_connected') }}
+                        {{ __('ui.cloud.not_connected', ['provider' => $providerLabel]) }}
                     @endif
                 </flux:text>
 
@@ -198,51 +211,51 @@
                         size="xs"
                         variant="filled"
                         icon="arrow-top-right-on-square"
-                        :href="route('drive.connect')"
+                        :href="route('cloud.'.$cloudProvider.'.connect')"
                     >
-                        {{ $driveConnected ? __('ui.drive.reconnect') : __('ui.drive.connect') }}
+                        {{ $cloudConnected ? __('ui.cloud.reconnect') : __('ui.cloud.connect', ['provider' => $providerLabel]) }}
                     </flux:button>
 
-                    @if ($driveConnected)
-                        <flux:button type="button" size="xs" variant="subtle" wire:click="disconnectDrive">
-                            {{ __('ui.drive.disconnect') }}
+                    @if ($cloudConnected)
+                        <flux:button type="button" size="xs" variant="subtle" wire:click="disconnectCloud">
+                            {{ __('ui.cloud.disconnect') }}
                         </flux:button>
                     @endif
                 </div>
             </div>
 
-            @if ($driveEnabled)
+            @if ($cloudEnabled && $cloudProvider === \App\Cloud\Data\CloudProvider::GoogleDrive->value)
                 <flux:input
-                    wire:model="driveRootFolderId"
-                    :label="__('ui.drive.root_folder_label')"
-                    :description="__('ui.drive.root_folder_description')"
+                    wire:model="googleRootFolderId"
+                    :label="__('ui.cloud.google_drive.root_folder_label')"
+                    :description="__('ui.cloud.google_drive.root_folder_description')"
                     class="font-mono"
                     placeholder="1a2B3cD4eF5gH6iJ7kL8mN9oP"
                 />
 
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:input
-                        wire:model.live.debounce.400ms="driveIncomeFolder"
-                        :label="__('ui.drive.income_folder_label')"
+                        wire:model.live.debounce.400ms="googleIncomeFolder"
+                        :label="__('ui.cloud.income_folder_label')"
                         class="font-mono"
                     />
 
                     <flux:input
-                        wire:model.live.debounce.400ms="driveExpenseFolder"
-                        :label="__('ui.drive.expense_folder_label')"
+                        wire:model.live.debounce.400ms="googleExpenseFolder"
+                        :label="__('ui.cloud.expense_folder_label')"
                         class="font-mono"
                     />
 
                     <flux:text variant="subtle" class="text-xs sm:col-span-2">
-                        {{ __('ui.drive.folders_description', ['token' => \App\Cloud\Google\GoogleFolderTemplate::TOKEN]) }}
+                        {{ __('ui.cloud.folders_description', ['token' => \App\Cloud\Google\GoogleFolderTemplate::TOKEN]) }}
                     </flux:text>
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
                     <div>
-                        <flux:text variant="subtle" class="text-xs">{{ __('ui.drive.preview') }}</flux:text>
+                        <flux:text variant="subtle" class="text-xs">{{ __('ui.cloud.preview') }}</flux:text>
                         <flux:text class="mt-1 font-mono text-sm break-all">
-                            {{ $this->drivePreview['income'] }} · {{ $this->drivePreview['expense'] }}
+                            {{ $this->googleFolderPreview['income'] }} · {{ $this->googleFolderPreview['expense'] }}
                         </flux:text>
                     </div>
 
@@ -251,15 +264,15 @@
                         size="xs"
                         variant="filled"
                         icon="magnifying-glass"
-                        wire:click="verifyDrive"
+                        wire:click="verifyCloudDestinations"
                         wire:loading.attr="disabled"
-                        wire:target="verifyDrive"
+                        wire:target="verifyCloudDestinations"
                     >
-                        {{ __('ui.drive.verify') }}
+                        {{ __('ui.cloud.verify') }}
                     </flux:button>
                 </div>
 
-                <flux:text variant="subtle" class="text-xs">{{ __('ui.drive.scope_notice') }}</flux:text>
+                <flux:text variant="subtle" class="text-xs">{{ __('ui.cloud.google_drive.scope_notice') }}</flux:text>
             @endif
         </div>
 

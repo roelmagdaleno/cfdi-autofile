@@ -2,8 +2,9 @@
 
 use App\Cfdi\Data\TypeLetter;
 use App\Cloud\CloudSync;
+use App\Cloud\Data\CloudConfig;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudStatus;
-use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Document;
 use App\Support\AppSettings;
 use Illuminate\Support\Facades\Storage;
@@ -23,7 +24,7 @@ function driveDocument(array $attributes = []): Document
 }
 
 it('files an expense under the received folder for its year', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = driveDocument([
         'issued_on' => '2026-02-14',
@@ -39,7 +40,7 @@ it('files an expense under the received folder for its year', function (): void 
 });
 
 it('files income under the issued folder for its year', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = driveDocument([
         'issued_on' => '2024-11-30',
@@ -55,7 +56,7 @@ it('files income under the issued folder for its year', function (): void {
 // The whole point of the integration: the user's folders already exist, and a
 // second folder with the same name would be worse than not uploading at all.
 it('reuses a folder the user already had instead of creating one', function (): void {
-    $files = fakeDrive((new FakeCloudFiles)->withFolder('2026 - Recibidas', 'existing-folder'));
+    $files = fakeCloud((new FakeCloudFiles)->withFolder('2026 - Recibidas', 'existing-folder'));
 
     $document = driveDocument(['issued_on' => '2026-02-14', 'type_letter' => TypeLetter::Expense->value]);
 
@@ -66,7 +67,7 @@ it('reuses a folder the user already had instead of creating one', function (): 
 });
 
 it('creates the folder of a year that does not exist yet', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = driveDocument(['issued_on' => '2027-01-03', 'type_letter' => TypeLetter::Income->value]);
 
@@ -77,7 +78,7 @@ it('creates the folder of a year that does not exist yet', function (): void {
 
 // A run of twenty invoices must not ask Drive for the same folder twenty times.
 it('resolves each folder once per sync', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $documents = [
         driveDocument(['issued_on' => '2026-01-05', 'type_letter' => TypeLetter::Expense->value, 'name' => 'a.xml']),
@@ -92,7 +93,7 @@ it('resolves each folder once per sync', function (): void {
 });
 
 it('skips a document with no folder it could belong to', function (array $attributes, string $needle): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $result = app(CloudSync::class)->sync([driveDocument($attributes)]);
 
@@ -108,7 +109,7 @@ it('skips a document with no folder it could belong to', function (array $attrib
 // Only the command produces these: the row points at a file on the user's own
 // disk, which they can move or delete without the app noticing.
 it('skips a document whose file is gone', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = Document::factory()->indexedInPlace('/tmp/does-not-exist-'.uniqid().'.xml')->create();
 
@@ -119,7 +120,7 @@ it('skips a document whose file is gone', function (): void {
 });
 
 it('records where the file landed on the document', function (): void {
-    fakeDrive();
+    fakeCloud();
 
     $document = driveDocument(['issued_on' => '2026-02-14', 'type_letter' => TypeLetter::Expense->value]);
 
@@ -136,7 +137,7 @@ it('records where the file landed on the document', function (): void {
 // Reprocessing the same CFDI is routine (a new template, a renamed
 // counterparty). It has to update the file in Drive, not leave two copies.
 it('replaces the file in place when the document was already uploaded', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = driveDocument(['issued_on' => '2026-02-14', 'type_letter' => TypeLetter::Expense->value, 'name' => 'v1.xml']);
 
@@ -153,7 +154,7 @@ it('replaces the file in place when the document was already uploaded', function
 });
 
 it('uploads again when the stored file no longer exists in drive', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
     $document = driveDocument([
         'issued_on' => '2026-02-14',
@@ -171,7 +172,7 @@ it('uploads again when the stored file no longer exists in drive', function (): 
 // The files are already renamed and archived by this point; losing that over
 // one bad upload would be absurd.
 it('keeps uploading the rest when one file fails', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     $files->failUpload = 'broken.xml';
 
     $documents = [
@@ -189,14 +190,9 @@ it('keeps uploading the rest when one file fails', function (): void {
 });
 
 it('does nothing at all while the integration is off', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
-    app(AppSettings::class)->setDrive(new GoogleDriveConfig(
-        enabled: false,
-        rootFolderId: GoogleDriveConfig::ROOT,
-        incomeFolder: GoogleDriveConfig::DEFAULT_INCOME_FOLDER,
-        expenseFolder: GoogleDriveConfig::DEFAULT_EXPENSE_FOLDER,
-    ));
+    app(AppSettings::class)->setCloud(new CloudConfig(enabled: false, provider: CloudProvider::GoogleDrive));
 
     $result = app(CloudSync::class)->sync([driveDocument()]);
 
@@ -208,21 +204,21 @@ it('does nothing at all while the integration is off', function (): void {
 
 // One reason, once, instead of the same row twenty times over.
 it('fails everything with a single reason when no account is connected', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
 
-    app(AppSettings::class)->disconnectDrive();
+    app(AppSettings::class)->disconnectCloud(CloudProvider::GoogleDrive);
 
     $result = app(CloudSync::class)->sync([driveDocument(), driveDocument()]);
 
     expect($result->outcomes)->toHaveCount(2)
         ->and($result->outcomes[0]->status)->toBe(CloudStatus::Failed)
-        ->and($result->outcomes[1]->reason)->toContain('No Google account is connected')
+        ->and($result->outcomes[1]->reason)->toContain('No Google Drive account is connected')
         ->and($result->warnings)->toHaveCount(1)
         ->and($files->lookups)->toBe([]);
 });
 
 it('preserves the keys it was given so a run can match its rows', function (): void {
-    fakeDrive();
+    fakeCloud();
 
     $documents = [
         7 => driveDocument(['issued_on' => '2026-01-05', 'type_letter' => TypeLetter::Expense->value]),

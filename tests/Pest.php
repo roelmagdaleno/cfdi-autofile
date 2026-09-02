@@ -3,6 +3,8 @@
 use App\Cfdi\Parsing\PdfTextExtractor;
 use App\Cloud\Contracts\CloudDestinations;
 use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Data\CloudConfig;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Google\Contracts\GoogleFolders;
 use App\Cloud\Google\GoogleDestinations;
 use App\Cloud\Google\GoogleDriveConfig;
@@ -102,29 +104,25 @@ function bindFakeCloud(FakeCloudFiles $files): void
     app()->instance(GoogleFolders::class, $files);
     app()->bind(CloudDestinations::class, fn (): GoogleDestinations => new GoogleDestinations(
         $files,
-        app(AppSettings::class)->drive(),
+        app(AppSettings::class)->googleDrive(),
     ));
 }
 
 /**
- * Turns the Drive integration on with a connected account, and returns the fake
- * the container will hand to `CloudSync`.
+ * Turns the integration on with a connected account, and returns the fake the
+ * container will hand to `CloudSync`.
  */
-function fakeDrive(?FakeCloudFiles $files = null): FakeCloudFiles
+function fakeCloud(?FakeCloudFiles $files = null): FakeCloudFiles
 {
     $files ??= new FakeCloudFiles;
 
     bindFakeCloud($files);
 
     $settings = app(AppSettings::class);
-    $settings->setDrive(new GoogleDriveConfig(
-        enabled: true,
-        rootFolderId: GoogleDriveConfig::ROOT,
-        incomeFolder: GoogleDriveConfig::DEFAULT_INCOME_FOLDER,
-        expenseFolder: GoogleDriveConfig::DEFAULT_EXPENSE_FOLDER,
-    ));
-    $settings->setDriveRefreshToken('refresh-token-abc');
-    $settings->setDriveAccountEmail('facturas@example.com');
+    $settings->setCloud(new CloudConfig(enabled: true, provider: CloudProvider::GoogleDrive));
+    $settings->setGoogleDrive(GoogleDriveConfig::defaults());
+    $settings->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
+    $settings->setAccountLabel(CloudProvider::GoogleDrive, 'facturas@example.com');
 
     return $files;
 }

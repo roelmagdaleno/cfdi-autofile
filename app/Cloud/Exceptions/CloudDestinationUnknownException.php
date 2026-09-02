@@ -12,11 +12,11 @@ final class CloudDestinationUnknownException extends CloudException
 {
     public static function missingDate(): self
     {
-        return new self((string) __('cfdi.drive.skipped.no_date'));
+        return new self((string) __('cfdi.cloud.skipped.no_date'));
     }
 
     public static function unknownType(): self
     {
-        return new self((string) __('cfdi.drive.skipped.unknown_type'));
+        return new self((string) __('cfdi.cloud.skipped.unknown_type'));
     }
 }

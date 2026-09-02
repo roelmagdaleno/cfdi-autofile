@@ -4,6 +4,7 @@ namespace App\Cloud\Google;
 
 use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Data\CloudFile;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudException;
 use App\Cloud\Exceptions\CloudRequestException;
@@ -74,7 +75,7 @@ final class GoogleCloudFiles implements CloudFiles, GoogleFolders
         $email = $response->json('user.emailAddress');
 
         if (! is_string($email) || $email === '') {
-            throw CloudRequestException::make('about', $response->status(), '');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'about', $response->status(), '');
         }
 
         return $email;
@@ -128,7 +129,7 @@ final class GoogleCloudFiles implements CloudFiles, GoogleFolders
         $id = $response->json('id');
 
         if (! is_string($id) || $id === '') {
-            throw CloudRequestException::make('create_folder', $response->status(), '');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, 'create_folder', $response->status(), '');
         }
 
         return $id;
@@ -211,7 +212,7 @@ final class GoogleCloudFiles implements CloudFiles, GoogleFolders
         $id = $response->json('id');
 
         if (! is_string($id) || $id === '') {
-            throw CloudRequestException::make($operation, $response->status(), '');
+            throw CloudRequestException::make(CloudProvider::GoogleDrive, $operation, $response->status(), '');
         }
 
         $link = $response->json('webViewLink');
@@ -241,6 +242,7 @@ final class GoogleCloudFiles implements CloudFiles, GoogleFolders
         }
 
         throw CloudRequestException::make(
+            CloudProvider::GoogleDrive,
             $operation,
             $response->status(),
             (string) $response->json('error.message', ''),

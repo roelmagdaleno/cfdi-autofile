@@ -1,5 +1,6 @@
 <?php
 
+use App\Cloud\Data\CloudProvider;
 use App\Livewire\EditSettings;
 use App\Support\AppSettings;
 use Livewire\Features\SupportTesting\Testable;
@@ -177,64 +178,64 @@ function validSettings(): Testable
 
 it('has the drive integration off by default', function (): void {
     Livewire::test(EditSettings::class)
-        ->assertSet('driveEnabled', false)
-        ->assertSet('driveConnected', false)
-        ->assertSet('driveIncomeFolder', '{year} - Emitidas')
-        ->assertSet('driveExpenseFolder', '{year} - Recibidas')
+        ->assertSet('cloudEnabled', false)
+        ->assertSet('cloudConnected', false)
+        ->assertSet('googleIncomeFolder', '{year} - Emitidas')
+        ->assertSet('googleExpenseFolder', '{year} - Recibidas')
         // The default alias is an implementation detail: an empty box reads as
         // "the top of My Drive".
-        ->assertSet('driveRootFolderId', '');
+        ->assertSet('googleRootFolderId', '');
 });
 
 it('saves the drive configuration', function (): void {
-    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+    app(AppSettings::class)->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
 
     validSettings()
-        ->set('driveEnabled', true)
-        ->set('driveRootFolderId', '1a2b3c')
-        ->set('driveIncomeFolder', 'Emitidas {year}')
-        ->set('driveExpenseFolder', 'Recibidas {year}')
+        ->set('cloudEnabled', true)
+        ->set('googleRootFolderId', '1a2b3c')
+        ->set('googleIncomeFolder', 'Emitidas {year}')
+        ->set('googleExpenseFolder', 'Recibidas {year}')
         ->call('save')
         ->assertHasNoErrors();
 
-    $drive = app(AppSettings::class)->drive();
+    $google = app(AppSettings::class)->googleDrive();
 
-    expect($drive->enabled)->toBeTrue()
-        ->and($drive->rootFolderId)->toBe('1a2b3c')
-        ->and($drive->incomeFolder)->toBe('Emitidas {year}');
+    expect(app(AppSettings::class)->cloud()->enabled)->toBeTrue()
+        ->and($google->rootFolderId)->toBe('1a2b3c')
+        ->and($google->incomeFolder)->toBe('Emitidas {year}');
 });
 
 it('falls back to the root of my drive when no folder id is given', function (): void {
-    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+    app(AppSettings::class)->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
 
     validSettings()
-        ->set('driveEnabled', true)
-        ->set('driveRootFolderId', '   ')
+        ->set('cloudEnabled', true)
+        ->set('googleRootFolderId', '   ')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(app(AppSettings::class)->drive()->rootFolderId)->toBe('root');
+    expect(app(AppSettings::class)->googleDrive()->rootFolderId)->toBe('root');
 });
 
 // Turning the switch on without an authorized account would make every run fail
 // identically, twenty rows at a time.
 it('refuses to enable the integration without a connected account', function (): void {
     validSettings()
-        ->set('driveEnabled', true)
+        ->set('cloudEnabled', true)
         ->call('save')
-        ->assertHasErrors('driveEnabled');
+        ->assertHasErrors('cloudEnabled');
 
-    expect(app(AppSettings::class)->drive()->enabled)->toBeFalse();
+    expect(app(AppSettings::class)->cloud()->enabled)->toBeFalse();
 });
 
 it('rejects a folder name that cannot file by year', function (string $folder): void {
-    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+    app(AppSettings::class)->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
 
     validSettings()
-        ->set('driveEnabled', true)
-        ->set('driveIncomeFolder', $folder)
+        ->set('cloudEnabled', true)
+        ->set('googleIncomeFolder', $folder)
         ->call('save')
-        ->assertHasErrors('driveIncomeFolder');
+        ->assertHasErrors('googleIncomeFolder');
 })->with([
     'empty' => [''],
     'no year token' => ['Emitidas'],
@@ -245,9 +246,9 @@ it('rejects a folder name that cannot file by year', function (string $folder): 
 // Turning the integration off must never be blocked by the folder fields.
 it('allows saving with empty folder names while the integration is off', function (): void {
     validSettings()
-        ->set('driveEnabled', false)
-        ->set('driveIncomeFolder', '')
-        ->set('driveExpenseFolder', '')
+        ->set('cloudEnabled', false)
+        ->set('googleIncomeFolder', '')
+        ->set('googleExpenseFolder', '')
         ->call('save')
         ->assertHasNoErrors();
 });
@@ -256,48 +257,48 @@ it('previews the folders of the current year', function (): void {
     $year = now()->format('Y');
 
     validSettings()
-        ->set('driveIncomeFolder', 'Emitidas {year}')
-        ->set('driveEnabled', true)
+        ->set('googleIncomeFolder', 'Emitidas {year}')
+        ->set('cloudEnabled', true)
         ->assertSee("Emitidas {$year}")
         ->assertSee("{$year} - Recibidas");
 });
 
 it('forgets the account but keeps the folders when disconnecting', function (): void {
     $settings = app(AppSettings::class);
-    $settings->setDriveRefreshToken('refresh-token-abc');
-    $settings->setDriveAccountEmail('facturas@example.com');
+    $settings->setCredential(CloudProvider::GoogleDrive, 'refresh-token-abc');
+    $settings->setAccountLabel(CloudProvider::GoogleDrive, 'facturas@example.com');
 
     Livewire::test(EditSettings::class)
-        ->assertSet('driveConnected', true)
-        ->assertSet('driveEmail', 'facturas@example.com')
-        ->call('disconnectDrive')
-        ->assertSet('driveConnected', false)
-        ->assertSet('driveEmail', '')
-        ->assertSet('driveIncomeFolder', '{year} - Emitidas');
+        ->assertSet('cloudConnected', true)
+        ->assertSet('cloudAccount', 'facturas@example.com')
+        ->call('disconnectCloud')
+        ->assertSet('cloudConnected', false)
+        ->assertSet('cloudAccount', '')
+        ->assertSet('googleIncomeFolder', '{year} - Emitidas');
 
-    expect($settings->isDriveConnected())->toBeFalse();
+    expect($settings->isCloudConnected(CloudProvider::GoogleDrive))->toBeFalse();
 });
 
 it('verifies the folders of the current year against drive', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     $year = (int) now()->format('Y');
 
     Livewire::test(EditSettings::class)
-        ->set('driveEnabled', true)
-        ->call('verifyDrive')
+        ->set('cloudEnabled', true)
+        ->call('verifyCloudDestinations')
         ->assertHasNoErrors();
 
     expect($files->created)->toBe(["{$year} - Emitidas", "{$year} - Recibidas"]);
 });
 
 it('reports a drive failure when verifying instead of throwing', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     $year = (int) now()->format('Y');
     $files->failFolder = "{$year} - Emitidas";
 
     Livewire::test(EditSettings::class)
-        ->set('driveEnabled', true)
-        ->call('verifyDrive')
+        ->set('cloudEnabled', true)
+        ->call('verifyCloudDestinations')
         ->assertHasNoErrors();
 
     expect($files->created)->toBe([]);
@@ -306,27 +307,27 @@ it('reports a drive failure when verifying instead of throwing', function (): vo
 // The screen used to show "connected as" followed by nothing whenever the
 // address had not made it into the settings.
 it('fills in a missing account address on the next visit', function (): void {
-    fakeDrive();
-    app(AppSettings::class)->setDriveAccountEmail('');
+    fakeCloud();
+    app(AppSettings::class)->setAccountLabel(CloudProvider::GoogleDrive, '');
 
     Livewire::test(EditSettings::class)
-        ->assertSet('driveConnected', true)
-        ->assertSet('driveEmail', 'facturas@example.com')
+        ->assertSet('cloudConnected', true)
+        ->assertSet('cloudAccount', 'facturas@example.com')
         ->assertSee('facturas@example.com');
 
-    expect(app(AppSettings::class)->driveAccountEmail())->toBe('facturas@example.com');
+    expect(app(AppSettings::class)->accountLabel(CloudProvider::GoogleDrive))->toBe('facturas@example.com');
 });
 
 it('still reports the account as connected when drive will not name it', function (): void {
-    $files = fakeDrive();
+    $files = fakeCloud();
     $files->failAbout = true;
-    app(AppSettings::class)->setDriveAccountEmail('');
+    app(AppSettings::class)->setAccountLabel(CloudProvider::GoogleDrive, '');
 
     Livewire::test(EditSettings::class)
-        ->assertSet('driveConnected', true)
-        ->assertSet('driveEmail', '')
-        ->assertSee(__('ui.drive.connected_unknown'))
-        ->assertSee(__('ui.drive.disconnect'));
+        ->assertSet('cloudConnected', true)
+        ->assertSet('cloudAccount', '')
+        ->assertSee(__('ui.cloud.connected_unknown', ['provider' => 'Google Drive']))
+        ->assertSee(__('ui.cloud.disconnect'));
 });
 
 it('renders the template section as a labelled group', function (): void {

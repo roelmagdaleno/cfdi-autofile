@@ -7,6 +7,8 @@ use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cloud\CloudAccount;
+use App\Cloud\Data\CloudConfig;
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Exceptions\CloudException;
 use App\Cloud\Google\Contracts\GoogleFolders;
 use App\Cloud\Google\GoogleDestinations;
@@ -24,7 +26,7 @@ use Livewire\Component;
  * @property-read string $preview
  * @property-read TypeLetters $typeLetters
  * @property-read list<Placeholder> $placeholders
- * @property-read array{income: string, expense: string} $drivePreview
+ * @property-read array{income: string, expense: string} $googleFolderPreview
  */
 final class EditSettings extends Component
 {
@@ -41,23 +43,26 @@ final class EditSettings extends Component
     /** Type letter used to build the example. It only affects the preview. */
     public string $previewType = TypeLetter::Expense->value;
 
-    public bool $driveEnabled = false;
+    public bool $cloudEnabled = false;
+
+    /** Backing value of a `CloudProvider`. */
+    public string $cloudProvider = '';
 
     /** Empty means the top of "My Drive". */
-    public string $driveRootFolderId = '';
+    public string $googleRootFolderId = '';
 
-    public string $driveIncomeFolder = '';
+    public string $googleIncomeFolder = '';
 
-    public string $driveExpenseFolder = '';
+    public string $googleExpenseFolder = '';
 
     /**
      * Read once on mount rather than through a computed property: the OAuth
      * flow leaves the page and comes back, so a fresh mount is the only moment
      * this can change.
      */
-    public bool $driveConnected = false;
+    public bool $cloudConnected = false;
 
-    public string $driveEmail = '';
+    public string $cloudAccount = '';
 
     public function mount(AppSettings $settings): void
     {
@@ -68,7 +73,7 @@ final class EditSettings extends Component
         $this->letterIncome = $letters->income;
         $this->letterExpense = $letters->expense;
 
-        $this->hydrateDrive($settings);
+        $this->hydrateCloud($settings);
     }
 
     /**
@@ -149,8 +154,9 @@ final class EditSettings extends Component
         $this->letterIncome = $letters->income;
         $this->letterExpense = $letters->expense;
 
-        $settings->setDrive($this->driveConfig());
-        $this->hydrateDrive($settings);
+        $settings->setCloud(new CloudConfig(enabled: $this->cloudEnabled, provider: $this->provider()));
+        $settings->setGoogleDrive($this->googleConfig());
+        $this->hydrateCloud($settings);
 
         Flux::toast(variant: 'success', text: __('ui.settings.saved'));
     }
@@ -159,13 +165,15 @@ final class EditSettings extends Component
      * Forgets the authorization without touching the folder configuration, so
      * reconnecting does not mean setting the templates up again.
      */
-    public function disconnectDrive(AppSettings $settings): void
+    public function disconnectCloud(AppSettings $settings): void
     {
-        $settings->disconnectDrive();
+        $provider = $this->provider();
 
-        $this->hydrateDrive($settings);
+        $settings->disconnectCloud($provider);
 
-        Flux::toast(variant: 'success', text: __('ui.drive.disconnected'));
+        $this->hydrateCloud($settings);
+
+        Flux::toast(variant: 'success', text: __('ui.cloud.disconnected', ['provider' => $provider->label()]));
     }
 
     /**
@@ -180,20 +188,22 @@ final class EditSettings extends Component
      * Knowing about Google here is deliberate: this button belongs to Google's
      * own card, next to the fields it validates.
      */
-    public function verifyDrive(AppSettings $settings, GoogleFolders $folders): void
+    public function verifyCloudDestinations(AppSettings $settings, GoogleFolders $folders): void
     {
-        if (! $settings->isDriveConnected()) {
-            Flux::toast(variant: 'danger', text: __('ui.validation.drive.not_connected'));
+        $provider = $this->provider();
+
+        if (! $settings->isCloudConnected($provider)) {
+            Flux::toast(variant: 'danger', text: __('ui.validation.cloud.not_connected', ['provider' => $provider->label()]));
 
             return;
         }
 
         $this->validate([
-            'driveIncomeFolder' => $this->driveFolderRules(),
-            'driveExpenseFolder' => $this->driveFolderRules(),
+            'googleIncomeFolder' => $this->googleFolderRules(),
+            'googleExpenseFolder' => $this->googleFolderRules(),
         ]);
 
-        $destinations = new GoogleDestinations($folders, $this->driveConfig());
+        $destinations = new GoogleDestinations($folders, $this->googleConfig());
         $year = (int) now()->format('Y');
 
         try {
@@ -205,7 +215,7 @@ final class EditSettings extends Component
             return;
         }
 
-        Flux::toast(variant: 'success', text: __('ui.drive.verified', $this->drivePreview));
+        Flux::toast(variant: 'success', text: __('ui.cloud.verified', $this->googleFolderPreview));
     }
 
     /**
@@ -214,42 +224,51 @@ final class EditSettings extends Component
      * @return array{income: string, expense: string}
      */
     #[Computed]
-    public function drivePreview(): array
+    public function googleFolderPreview(): array
     {
         $year = (int) now()->format('Y');
 
         return [
-            'income' => (new GoogleFolderTemplate(trim($this->driveIncomeFolder)))->render($year),
-            'expense' => (new GoogleFolderTemplate(trim($this->driveExpenseFolder)))->render($year),
+            'income' => (new GoogleFolderTemplate(trim($this->googleIncomeFolder)))->render($year),
+            'expense' => (new GoogleFolderTemplate(trim($this->googleExpenseFolder)))->render($year),
         ];
     }
 
-    private function hydrateDrive(AppSettings $settings): void
+    private function hydrateCloud(AppSettings $settings): void
     {
-        $drive = $settings->drive();
+        $cloud = $settings->cloud();
+        $google = $settings->googleDrive();
 
-        $this->driveEnabled = $drive->enabled;
+        $this->cloudEnabled = $cloud->enabled;
+        $this->cloudProvider = $cloud->provider->value;
         // The default alias is an implementation detail: an empty box reads as
         // "the top of My Drive", which is what it means.
-        $this->driveRootFolderId = $drive->rootFolderId === GoogleDriveConfig::ROOT ? '' : $drive->rootFolderId;
-        $this->driveIncomeFolder = $drive->incomeFolder;
-        $this->driveExpenseFolder = $drive->expenseFolder;
-        $this->driveConnected = $settings->isDriveConnected();
+        $this->googleRootFolderId = $google->rootFolderId === GoogleDriveConfig::ROOT ? '' : $google->rootFolderId;
+        $this->googleIncomeFolder = $google->incomeFolder;
+        $this->googleExpenseFolder = $google->expenseFolder;
+        $this->cloudConnected = $settings->isCloudConnected($cloud->provider);
         // Resolved through `CloudAccount` rather than read straight from the
-        // settings: an install whose address never made it in gets it filled on
+        // settings: an install whose account never made it in gets it filled on
         // this visit instead of showing "connected as" and nothing.
-        $this->driveEmail = app(CloudAccount::class)->email() ?? '';
+        $this->cloudAccount = app(CloudAccount::class)->label() ?? '';
     }
 
-    private function driveConfig(): GoogleDriveConfig
+    /**
+     * The provider currently selected on screen, saved or not.
+     */
+    private function provider(): CloudProvider
     {
-        $root = trim($this->driveRootFolderId);
+        return CloudProvider::tryFrom($this->cloudProvider) ?? CloudProvider::default();
+    }
+
+    private function googleConfig(): GoogleDriveConfig
+    {
+        $root = trim($this->googleRootFolderId);
 
         return new GoogleDriveConfig(
-            enabled: $this->driveEnabled,
             rootFolderId: $root === '' ? GoogleDriveConfig::ROOT : $root,
-            incomeFolder: trim($this->driveIncomeFolder),
-            expenseFolder: trim($this->driveExpenseFolder),
+            incomeFolder: trim($this->googleIncomeFolder),
+            expenseFolder: trim($this->googleExpenseFolder),
         );
     }
 
@@ -292,16 +311,17 @@ final class EditSettings extends Component
             }],
             'letterIncome' => $this->letterRules(),
             'letterExpense' => $this->letterRules(),
-            'driveEnabled' => ['boolean', function (string $attribute, mixed $value, Closure $fail): void {
+            'cloudEnabled' => ['boolean', function (string $attribute, mixed $value, Closure $fail): void {
                 // Turning the switch on without an authorized account would
                 // make every run fail identically, twenty rows at a time.
-                if ($value === true && ! $this->driveConnected) {
-                    $fail((string) __('ui.validation.drive.not_connected'));
+                if ($value === true && ! $this->cloudConnected) {
+                    $fail((string) __('ui.validation.cloud.not_connected', ['provider' => $this->provider()->label()]));
                 }
             }],
-            'driveRootFolderId' => ['nullable', 'string', 'max:255'],
-            'driveIncomeFolder' => $this->driveFolderRules(),
-            'driveExpenseFolder' => $this->driveFolderRules(),
+            'cloudProvider' => ['required', Rule::enum(CloudProvider::class)],
+            'googleRootFolderId' => ['nullable', 'string', 'max:255'],
+            'googleIncomeFolder' => $this->googleFolderRules(),
+            'googleExpenseFolder' => $this->googleFolderRules(),
         ];
     }
 
@@ -315,29 +335,29 @@ final class EditSettings extends Component
      *
      * @return array<int, mixed>
      */
-    private function driveFolderRules(): array
+    private function googleFolderRules(): array
     {
-        return [Rule::requiredIf(fn (): bool => $this->driveEnabled), 'string', function (string $attribute, mixed $value, Closure $fail): void {
-            if (! $this->driveEnabled) {
+        return [Rule::requiredIf(fn (): bool => $this->cloudEnabled), 'string', function (string $attribute, mixed $value, Closure $fail): void {
+            if (! $this->cloudEnabled) {
                 return;
             }
 
             $template = trim(is_string($value) ? $value : '');
 
             if (mb_strlen($template) > GoogleFolderTemplate::MAX_LENGTH) {
-                $fail((string) __('ui.validation.drive.folder_max', ['max' => GoogleFolderTemplate::MAX_LENGTH]));
+                $fail((string) __('ui.validation.cloud.folder_max', ['max' => GoogleFolderTemplate::MAX_LENGTH]));
 
                 return;
             }
 
             if (! str_contains($template, GoogleFolderTemplate::TOKEN)) {
-                $fail((string) __('ui.validation.drive.folder_token', ['token' => GoogleFolderTemplate::TOKEN]));
+                $fail((string) __('ui.validation.cloud.folder_token', ['token' => GoogleFolderTemplate::TOKEN]));
 
                 return;
             }
 
             if (! GoogleFolderTemplate::isValid($template)) {
-                $fail((string) __('ui.validation.drive.folder_format'));
+                $fail((string) __('ui.validation.cloud.folder_format'));
             }
         }];
     }
@@ -385,8 +405,8 @@ final class EditSettings extends Component
             'template.max' => (string) __('ui.validation.template.max'),
             'letterIncome.required' => (string) __('ui.validation.letter.required'),
             'letterExpense.required' => (string) __('ui.validation.letter.required'),
-            'driveIncomeFolder.required' => (string) __('ui.validation.drive.folder_required'),
-            'driveExpenseFolder.required' => (string) __('ui.validation.drive.folder_required'),
+            'googleIncomeFolder.required' => (string) __('ui.validation.cloud.folder_required'),
+            'googleExpenseFolder.required' => (string) __('ui.validation.cloud.folder_required'),
         ];
     }
 }

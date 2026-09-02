@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Starts the Google authorization.
+ * Starts the authorization of the active provider.
  *
  * The `state` is stored in the session and compared on the way back, which is
  * what makes the callback tamper-evident: without it, anyone could hand the user
@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
  */
 final class ConnectCloudController extends Controller
 {
-    public const string STATE_KEY = 'drive_oauth_state';
+    public const string STATE_KEY = 'cloud_oauth_state';
 
     public function __invoke(Request $request, CloudOAuth $authenticator): RedirectResponse
     {
@@ -27,7 +27,7 @@ final class ConnectCloudController extends Controller
         if (blank(config('services.google.client_id')) || blank(config('services.google.client_secret'))) {
             return redirect()
                 ->route('settings.edit')
-                ->with('drive_error', (string) __('ui.drive.missing_credentials'));
+                ->with('cloud_error', (string) __('ui.cloud.google_drive.missing_credentials'));
         }
 
         // Google rejects any redirect URI that is not on a public TLD, so a
@@ -41,7 +41,7 @@ final class ConnectCloudController extends Controller
         if ($expectedHost !== null && $expectedHost !== $request->getHttpHost()) {
             return redirect()
                 ->route('settings.edit')
-                ->with('drive_error', (string) __('ui.drive.wrong_host', [
+                ->with('cloud_error', (string) __('ui.cloud.google_drive.wrong_host', [
                     'url' => 'http://'.$expectedHost.route('settings.edit', absolute: false),
                     'host' => $expectedHost,
                 ]));
