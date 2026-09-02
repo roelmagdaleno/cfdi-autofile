@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Cloud\Data\CloudProvider;
 use Database\Factories\DocumentFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
@@ -37,12 +40,10 @@ use Illuminate\Support\Facades\Storage;
  * @property string $path
  * @property int|null $size
  * @property string|null $checksum
- * @property string|null $drive_file_id
- * @property string|null $drive_link
- * @property Carbon|null $drive_uploaded_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Counterparty|null $counterparty
+ * @property-read Collection<int, DocumentCloudFile> $cloudFiles
  */
 class Document extends Model
 {
@@ -67,9 +68,6 @@ class Document extends Model
         'path',
         'size',
         'checksum',
-        'drive_file_id',
-        'drive_link',
-        'drive_uploaded_at',
     ];
 
     /**
@@ -96,11 +94,35 @@ class Document extends Model
     }
 
     /**
-     * The file has a copy in the user's Google Drive.
+     * @return HasMany<DocumentCloudFile, $this>
      */
-    public function isOnDrive(): bool
+    public function cloudFiles(): HasMany
     {
-        return $this->drive_link !== null;
+        return $this->hasMany(DocumentCloudFile::class);
+    }
+
+    /**
+     * The copy this document has at one provider, if it has one.
+     *
+     * It reads the LOADED relation rather than querying: the callers that run
+     * over many documents eager-load it, and there this costs nothing.
+     */
+    public function cloudFileFor(CloudProvider $provider): ?DocumentCloudFile
+    {
+        return $this->cloudFiles->firstWhere('provider', $provider);
+    }
+
+    /**
+     * Whether the file lives at a provider -- at one in particular, or at any of
+     * them when none is named.
+     */
+    public function isInCloud(?CloudProvider $provider = null): bool
+    {
+        if (! $provider instanceof CloudProvider) {
+            return $this->cloudFiles->isNotEmpty();
+        }
+
+        return $this->cloudFileFor($provider) instanceof DocumentCloudFile;
     }
 
     public function fileExists(): bool
@@ -118,7 +140,6 @@ class Document extends Model
             // Without the cast, SQLite returns `11600` and the amount comes out
             // with no decimals.
             'total' => 'decimal:2',
-            'drive_uploaded_at' => 'datetime',
         ];
     }
 }

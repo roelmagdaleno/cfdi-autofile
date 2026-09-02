@@ -90,17 +90,19 @@
                                 <flux:badge size="sm" color="amber">{{ __('ui.documents.file_not_found') }}</flux:badge>
                             @endif
 
-                            @if ($document->isOnDrive())
-                                <flux:tooltip :content="__('ui.cloud.open', ['provider' => __('ui.cloud.provider.google_drive')])">
+                            {{-- One button per provider: a document uploaded to
+                                 two of them has a link to each. --}}
+                            @foreach ($document->cloudFiles as $cloudFile)
+                                <flux:tooltip :content="__('ui.cloud.open', ['provider' => $cloudFile->provider->label()])">
                                     <flux:button
-                                        :href="$document->drive_link"
+                                        :href="$cloudFile->link"
                                         target="_blank"
                                         size="sm"
                                         variant="ghost"
                                         icon="cloud"
                                     />
                                 </flux:tooltip>
-                            @endif
+                            @endforeach
 
                             <flux:button
                                 size="sm"

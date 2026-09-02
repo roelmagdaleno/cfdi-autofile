@@ -14,6 +14,8 @@ use App\Cloud\Exceptions\CloudDestinationUnknownException;
 use App\Cloud\Exceptions\CloudException;
 use App\Models\Document;
 use App\Support\AppSettings;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * Uploads the documents a run just archived, and records where they landed.
@@ -65,16 +67,25 @@ final class CloudSync
         }
 
         $provider = $config->provider;
+
+        // One query for the whole run: `syncOne()` asks every document whether
+        // it already has a copy at this provider, and without this each answer
+        // would be its own round trip. `load()` mutates the models in place and
+        // leaves the caller's keys alone.
+        EloquentCollection::make($documents)->load([
+            'cloudFiles' => fn (Relation $query): Relation => $query->where('provider', $provider),
+        ]);
+
         $outcomes = [];
 
         foreach ($documents as $key => $document) {
-            $outcomes[$key] = $this->syncOne($document);
+            $outcomes[$key] = $this->syncOne($document, $provider);
         }
 
         return new CloudSyncResult($outcomes, $this->warningsFor($outcomes, $provider), $provider);
     }
 
-    private function syncOne(Document $document): CloudOutcome
+    private function syncOne(Document $document, CloudProvider $provider): CloudOutcome
     {
         // The command indexes files that live on the user's disk, so one can be
         // moved or deleted between the run and the upload.
@@ -96,7 +107,7 @@ final class CloudSync
             name: $document->name,
             mimeType: self::MIME_TYPES[$document->extension] ?? self::FALLBACK_MIME_TYPE,
             destination: $destination,
-            remoteId: $document->drive_file_id,
+            remoteId: $document->cloudFileFor($provider)?->remote_id,
         );
 
         try {
@@ -105,11 +116,12 @@ final class CloudSync
             return CloudOutcome::failed($exception->getMessage());
         }
 
-        $document->update([
-            'drive_file_id' => $file->id,
-            'drive_link' => $file->link,
-            'drive_uploaded_at' => now(),
-        ]);
+        // The keys are exactly the unique index, which is what makes
+        // reprocessing the same folio idempotent instead of hopeful.
+        $document->cloudFiles()->updateOrCreate(
+            ['provider' => $provider],
+            ['remote_id' => $file->id, 'link' => $file->link, 'uploaded_at' => now()],
+        );
 
         return CloudOutcome::uploaded($file->link);
     }

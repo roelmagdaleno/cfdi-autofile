@@ -16,8 +16,8 @@ use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
 use App\Cloud\CloudSync;
-use App\Cloud\Data\CloudOutcome;
 use App\Cloud\Data\CloudStatus;
+use App\Cloud\Data\CloudSyncResult;
 use App\Models\Counterparty;
 use App\Models\Document;
 use App\Models\Run;
@@ -355,7 +355,7 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Retries the Drive upload of the rows that failed.
+     * Retries the upload of the rows that failed.
      *
      * Only failures are retried, never skips: a CFDI with no issue date has no
      * folder to go to, and asking again would produce the same answer.
@@ -365,7 +365,7 @@ final class RunCfdis extends Component
         $failed = RunFile::query()
             ->with('document')
             ->where('run_id', $this->runId)
-            ->where('drive_status', CloudStatus::Failed->value)
+            ->where('cloud_status', CloudStatus::Failed->value)
             ->get();
 
         $documents = $failed
@@ -381,9 +381,10 @@ final class RunCfdis extends Component
 
         foreach ($result->outcomes as $runFileId => $outcome) {
             RunFile::query()->whereKey($runFileId)->update([
-                'drive_status' => $outcome->status->value,
-                'drive_link' => $outcome->link,
-                'drive_note' => $outcome->reason,
+                'cloud_provider' => $result->provider?->value,
+                'cloud_status' => $outcome->status->value,
+                'cloud_link' => $outcome->link,
+                'cloud_note' => $outcome->reason,
             ]);
         }
 
@@ -404,12 +405,12 @@ final class RunCfdis extends Component
 
         return RunFile::query()
             ->where('run_id', $this->runId)
-            ->where('drive_status', CloudStatus::Failed->value)
+            ->where('cloud_status', CloudStatus::Failed->value)
             ->exists();
     }
 
     /**
-     * Whether the Drive column belongs in the table at all: it does not when
+     * Whether the cloud column belongs in the table at all: it does not when
      * the integration was off for this run.
      */
     #[Computed]
@@ -421,7 +422,7 @@ final class RunCfdis extends Component
 
         return RunFile::query()
             ->where('run_id', $this->runId)
-            ->whereNotNull('drive_status')
+            ->whereNotNull('cloud_status')
             ->exists();
     }
 
@@ -497,16 +498,16 @@ final class RunCfdis extends Component
         // Uploading is the last thing that happens, and it cannot fail the run:
         // the files are already renamed and archived, so a network blip must not
         // undo that. `CloudSync` returns failures as values.
-        $drive = app(CloudSync::class)->sync($documents);
+        $cloud = app(CloudSync::class)->sync($documents);
 
-        $this->warnings = [...$result->warnings, ...$drive->warnings];
+        $this->warnings = [...$result->warnings, ...$cloud->warnings];
         $this->totalFiles = $result->totalFiles;
         $this->okFiles = $result->okFiles;
         $this->ignoredFiles = count($collected->errors);
         $this->step = self::STEP_RESULTS;
 
         $this->persist();
-        $this->persistFiles($collected->errors, $result, $documents, $drive->outcomes);
+        $this->persistFiles($collected->errors, $result, $documents, $cloud);
 
         unset($this->allRows);
     }
@@ -527,12 +528,17 @@ final class RunCfdis extends Component
      * Rewrites the run's rows. A second submission of the form replaces them
      * instead of piling them up.
      *
+     * The whole `CloudSyncResult` is passed rather than just its outcomes: the
+     * rows freeze WHICH provider uploaded them, and that lives on the result.
+     *
      * @param  list<CollectionError>  $errors
      * @param  array<int, Document>  $documents
-     * @param  array<int, CloudOutcome>  $outcomes  empty when the integration is off
      */
-    private function persistFiles(array $errors, ProcessResult $result, array $documents, array $outcomes = []): void
+    private function persistFiles(array $errors, ProcessResult $result, array $documents, CloudSyncResult $cloud): void
     {
+        $provider = $cloud->provider?->value;
+        $outcomes = $cloud->outcomes;
+
         RunFile::query()->where('run_id', $this->runId)->delete();
 
         $rows = [];
@@ -548,12 +554,13 @@ final class RunCfdis extends Component
                 'new_name' => null,
                 'note' => $error->reason,
                 // A discarded file was never placed, so it never had a shot at
-                // Drive. The keys still have to be here: `insert()` below is a
-                // single bulk statement and every row must carry the same
+                // the cloud. The keys still have to be here: `insert()` below is
+                // a single bulk statement and every row must carry the same
                 // columns.
-                'drive_status' => null,
-                'drive_link' => null,
-                'drive_note' => null,
+                'cloud_provider' => null,
+                'cloud_status' => null,
+                'cloud_link' => null,
+                'cloud_note' => null,
             ];
         }
 
@@ -568,9 +575,10 @@ final class RunCfdis extends Component
                 'original_name' => $row->original,
                 'new_name' => $row->newName,
                 'note' => $row->note,
-                'drive_status' => $outcome?->status->value,
-                'drive_link' => $outcome?->link,
-                'drive_note' => $outcome?->reason,
+                'cloud_provider' => $outcome === null ? null : $provider,
+                'cloud_status' => $outcome?->status->value,
+                'cloud_link' => $outcome?->link,
+                'cloud_note' => $outcome?->reason,
             ];
         }
 

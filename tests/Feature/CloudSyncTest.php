@@ -128,10 +128,12 @@ it('records where the file landed on the document', function (): void {
 
     $document->refresh();
 
-    expect($document->drive_file_id)->toBe('file-1')
-        ->and($document->drive_link)->toBe('https://drive.google.com/file/d/file-1/view')
-        ->and($document->drive_uploaded_at)->not->toBeNull()
-        ->and($document->isOnDrive())->toBeTrue();
+    $cloudFile = $document->cloudFileFor(CloudProvider::GoogleDrive);
+
+    expect($cloudFile?->remote_id)->toBe('file-1')
+        ->and($cloudFile?->link)->toBe('https://drive.google.com/file/d/file-1/view')
+        ->and($cloudFile?->uploaded_at)->not->toBeNull()
+        ->and($document->isInCloud(CloudProvider::GoogleDrive))->toBeTrue();
 });
 
 // Reprocessing the same CFDI is routine (a new template, a renamed
@@ -150,23 +152,32 @@ it('replaces the file in place when the document was already uploaded', function
     expect($files->uploaded)->toBe(['v1.xml'])
         ->and($files->replaced)->toBe(['v2.xml'])
         ->and($files->files)->toHaveCount(1)
-        ->and($document->refresh()->drive_file_id)->toBe('file-1');
+        // Still one row, still the same id: the unique index held.
+        ->and($document->refresh()->cloudFiles)->toHaveCount(1)
+        ->and($document->cloudFileFor(CloudProvider::GoogleDrive)?->remote_id)->toBe('file-1');
 });
 
-it('uploads again when the stored file no longer exists in drive', function (): void {
+// The user deleted the file from the provider by hand. The recovery itself
+// lives in the provider (`GoogleCloudFilesTest` covers the wire); what matters
+// here is that the row is rewritten with the id of the new copy, so the NEXT
+// run replaces that one instead of piling up a third.
+it('rewrites the stored id when the file it should replace is gone', function (): void {
     $files = fakeCloud();
 
-    $document = driveDocument([
-        'issued_on' => '2026-02-14',
-        'type_letter' => TypeLetter::Expense->value,
-        'drive_file_id' => 'deleted-by-hand',
+    $document = driveDocument(['issued_on' => '2026-02-14', 'type_letter' => TypeLetter::Expense->value]);
+    $document->cloudFiles()->create([
+        'provider' => CloudProvider::GoogleDrive,
+        'remote_id' => 'deleted-by-hand',
+        'link' => 'https://drive.google.com/file/d/deleted-by-hand/view',
+        'uploaded_at' => now(),
     ]);
 
-    $result = app(CloudSync::class)->sync([$document]);
+    $result = app(CloudSync::class)->sync([$document->refresh()]);
 
     expect($result->outcomes[0]->status)->toBe(CloudStatus::Uploaded)
         ->and($files->uploaded)->toHaveCount(1)
-        ->and($document->refresh()->drive_file_id)->toBe('file-1');
+        ->and($document->refresh()->cloudFiles)->toHaveCount(1)
+        ->and($document->cloudFileFor(CloudProvider::GoogleDrive)?->remote_id)->toBe('file-1');
 });
 
 // The files are already renamed and archived by this point; losing that over

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Cloud\Data\CloudProvider;
 use App\Cloud\Data\CloudStatus;
 use Database\Factories\RunFileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,9 +24,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $original_name
  * @property string|null $new_name
  * @property string|null $note
- * @property string|null $drive_status
- * @property string|null $drive_link
- * @property string|null $drive_note
+ * @property string|null $cloud_provider
+ * @property string|null $cloud_status
+ * @property string|null $cloud_link
+ * @property string|null $cloud_note
  * @property-read Run $run
  * @property-read Document|null $document
  */
@@ -45,18 +47,29 @@ class RunFile extends Model
         'original_name',
         'new_name',
         'note',
-        'drive_status',
-        'drive_link',
-        'drive_note',
+        'cloud_provider',
+        'cloud_status',
+        'cloud_link',
+        'cloud_note',
     ];
 
     /**
-     * What happened to this file on its way to Drive, when the integration was
-     * on for the run. `null` means the integration was off.
+     * What happened to this file on its way to the cloud, when the integration
+     * was on for the run. `null` means the integration was off.
      */
-    public function driveStatus(): ?CloudStatus
+    public function cloudStatus(): ?CloudStatus
     {
-        return CloudStatus::tryFrom((string) $this->drive_status);
+        return CloudStatus::tryFrom((string) $this->cloud_status);
+    }
+
+    /**
+     * Which provider that was. Frozen onto the row on purpose: the run has to
+     * keep saying who uploaded it that day even after the document moved
+     * somewhere else.
+     */
+    public function cloudProvider(): ?CloudProvider
+    {
+        return CloudProvider::tryFrom((string) $this->cloud_provider);
     }
 
     /**

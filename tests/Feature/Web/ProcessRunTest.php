@@ -2,6 +2,7 @@
 
 use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\TypeLetters;
+use App\Cloud\Data\CloudProvider;
 use App\Livewire\RunCfdis;
 use App\Models\Counterparty;
 use App\Models\Document;
@@ -413,10 +414,11 @@ it('uploads the run to drive and records the link on the run and the document', 
     // The fixture is dated 2026-02-14 and the configured RFC is the recipient,
     // so it is an expense: it belongs in that year's "received" folder.
     expect($files->folderOf($document->name))->toBe('2026 - Recibidas')
-        ->and($runFile->drive_status)->toBe('uploaded')
-        ->and($runFile->drive_link)->toBe($document->drive_link)
-        ->and($runFile->drive_note)->toBeNull()
-        ->and($document->drive_link)->not->toBeNull();
+        ->and($runFile->cloud_status)->toBe('uploaded')
+        ->and($runFile->cloud_link)->toBe($document->cloudFileFor(CloudProvider::GoogleDrive)?->link)
+        ->and($runFile->cloud_note)->toBeNull()
+        ->and($document->isInCloud(CloudProvider::GoogleDrive))->toBeTrue()
+        ->and($runFile->cloudProvider())->toBe(CloudProvider::GoogleDrive);
 });
 
 // Off, nothing leaves this machine and the columns stay empty.
@@ -430,9 +432,9 @@ it('leaves the drive columns alone while the integration is off', function (): v
 
     $runFile = Run::query()->findOrFail($runId)->files->sole();
 
-    expect($runFile->drive_status)->toBeNull()
-        ->and($runFile->drive_link)->toBeNull()
-        ->and(Document::query()->sole()->drive_link)->toBeNull();
+    expect($runFile->cloud_status)->toBeNull()
+        ->and($runFile->cloud_link)->toBeNull()
+        ->and(Document::query()->sole()->isInCloud())->toBeFalse();
 });
 
 // A discarded file was never placed, so it never had a shot at Drive. The row
@@ -451,8 +453,8 @@ it('leaves the drive columns empty on a discarded file', function (): void {
 
     $rows = Run::query()->findOrFail($runId)->files;
 
-    expect($rows->firstWhere('original_name', 'notes.txt')->drive_status)->toBeNull()
-        ->and($rows->firstWhere('original_name', 'invoice01.xml')->drive_status)->toBe('uploaded');
+    expect($rows->firstWhere('original_name', 'notes.txt')->cloud_status)->toBeNull()
+        ->and($rows->firstWhere('original_name', 'invoice01.xml')->cloud_status)->toBe('uploaded');
 });
 
 it('records the reason and warns when an upload fails', function (): void {
@@ -466,9 +468,9 @@ it('records the reason and warns when an upload fails', function (): void {
 
     $runFile = Run::query()->findOrFail($component->get('runId'))->files->sole();
 
-    expect($runFile->drive_status)->toBe('failed')
-        ->and($runFile->drive_note)->toContain('storageQuotaExceeded')
-        ->and($runFile->drive_link)->toBeNull()
+    expect($runFile->cloud_status)->toBe('failed')
+        ->and($runFile->cloud_note)->toContain('storageQuotaExceeded')
+        ->and($runFile->cloud_link)->toBeNull()
         // The renaming still happened: a bad upload cannot undo the run.
         ->and($runFile->status)->toBe('ok')
         ->and($component->get('warnings'))->toHaveCount(1);
@@ -490,9 +492,9 @@ it('retries only the failed uploads', function (): void {
 
     $runFile = Run::query()->findOrFail($component->get('runId'))->files->sole();
 
-    expect($runFile->drive_status)->toBe('uploaded')
-        ->and($runFile->drive_link)->not->toBeNull()
-        ->and(Document::query()->sole()->drive_link)->not->toBeNull();
+    expect($runFile->cloud_status)->toBe('uploaded')
+        ->and($runFile->cloud_link)->not->toBeNull()
+        ->and(Document::query()->sole()->isInCloud())->toBeTrue();
 });
 
 it('offers no retry when nothing failed', function (): void {

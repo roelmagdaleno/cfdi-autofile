@@ -3,7 +3,10 @@
 use App\Cfdi\Naming\TypeLetters;
 use App\Livewire\BrowseDocuments;
 use App\Models\Document;
+use App\Models\DocumentCloudFile;
 use App\Support\AppSettings;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
@@ -155,4 +158,26 @@ it('a counterparty link leads to its documents', function (): void {
     $this->get(route('counterparties.index'))
         ->assertOk()
         ->assertSee(route('documents.index', ['counterparty' => $document->counterparty_id]), escape: false);
+});
+
+// The list renders one link per provider a document lives at, so it MUST eager
+// load them: without it, twenty rows are twenty extra queries.
+it('reads where the documents live in one query, however many there are', function (): void {
+    foreach (range(1, 5) as $index) {
+        $document = archivedDocument(['name' => "factura{$index}.xml"]);
+
+        DocumentCloudFile::factory()->for($document)->create();
+    }
+
+    $queries = 0;
+
+    DB::listen(function (QueryExecuted $query) use (&$queries): void {
+        if (str_contains($query->sql, 'document_cloud_files')) {
+            $queries++;
+        }
+    });
+
+    Livewire::test(BrowseDocuments::class)->assertOk();
+
+    expect($queries)->toBe(1);
 });

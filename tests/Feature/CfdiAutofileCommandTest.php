@@ -1,6 +1,7 @@
 <?php
 
 use App\Cfdi\Naming\TypeLetters;
+use App\Cloud\Data\CloudProvider;
 use App\Models\Document;
 use App\Support\AppSettings;
 use Illuminate\Support\Facades\Artisan;
@@ -398,7 +399,7 @@ it('uploads to drive from the command line', function (): void {
 
     expect($result['code'])->toBe(0)
         ->and($files->folderOf($document->name))->toBe('2026 - Recibidas')
-        ->and($document->drive_link)->not->toBeNull()
+        ->and($document->isInCloud(CloudProvider::GoogleDrive))->toBeTrue()
         ->and($result['output'])->toContain('Google Drive:')
         ->and($result['output'])->toContain('1/1 uploaded to Google Drive.');
 });
@@ -416,7 +417,7 @@ it('says nothing about drive while the integration is off', function (): void {
     ]);
 
     expect($result['output'])->not->toContain('Google Drive')
-        ->and(Document::query()->sole()->drive_link)->toBeNull();
+        ->and(Document::query()->sole()->isInCloud())->toBeFalse();
 });
 
 // The command indexes the file where `--output` put it, without an archived
@@ -454,5 +455,5 @@ it('reports an upload it could not do without failing the command', function ():
     expect($result['code'])->toBe(0)
         ->and($result['output'])->toContain('storageQuotaExceeded')
         ->and($result['output'])->toContain('0/1 uploaded to Google Drive.')
-        ->and(Document::query()->sole()->drive_link)->toBeNull();
+        ->and(Document::query()->sole()->isInCloud())->toBeFalse();
 });

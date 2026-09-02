@@ -378,15 +378,15 @@
                         <flux:table.cell class="font-mono text-xs whitespace-normal break-words">{{ $row->new_name ?? '—' }}</flux:table.cell>
                         @if ($this->showsCloudColumn)
                             <flux:table.cell class="max-w-xs whitespace-normal break-words">
-                                @if ($row->drive_link !== null)
-                                    <flux:link :href="$row->drive_link" target="_blank" class="text-xs">
-                                        {{ __('ui.cloud.open', ['provider' => __('ui.cloud.provider.google_drive')]) }}
+                                @if ($row->cloud_link !== null)
+                                    <flux:link :href="$row->cloud_link" target="_blank" class="text-xs">
+                                        {{ __('ui.cloud.open', ['provider' => $row->cloudProvider()?->label()]) }}
                                     </flux:link>
-                                @elseif ($status = $row->driveStatus())
+                                @elseif ($status = $row->cloudStatus())
                                     <flux:text variant="subtle" class="text-xs">{{ $status->label() }}</flux:text>
 
-                                    @if ($row->drive_note !== null)
-                                        <span class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{{ $row->drive_note }}</span>
+                                    @if ($row->cloud_note !== null)
+                                        <span class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{{ $row->cloud_note }}</span>
                                     @endif
                                 @else
                                     <span class="text-xs text-zinc-400">—</span>

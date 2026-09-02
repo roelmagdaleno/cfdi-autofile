@@ -104,7 +104,7 @@ final class BrowseDocuments extends Component
     public function documents(): LengthAwarePaginator
     {
         return Document::query()
-            ->with('counterparty')
+            ->with(['counterparty', 'cloudFiles'])
             ->when($this->search !== '', function ($query): void {
                 $term = '%'.$this->search.'%';
 
