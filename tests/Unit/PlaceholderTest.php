@@ -2,6 +2,7 @@
 
 use App\Cfdi\Naming\Placeholder;
 use App\Support\AppSettings;
+use Illuminate\Support\Facades\App;
 
 /**
  * @param  list<array{placeholder: Placeholder|null, text: string}>  $segments
@@ -42,4 +43,15 @@ it('does not confuse text that reads like a piece', function (): void {
     $segments = Placeholder::segments('date');
 
     expect(segmentLabels($segments))->toBe(['text:date']);
+});
+
+// The pill label is display-only, so it follows the active locale while the
+// backing value (the token stored in the template) stays English.
+it('translates the label without touching the token', function (): void {
+    expect(Placeholder::Amount->label())->toBe('amount');
+
+    App::setLocale('es');
+
+    expect(Placeholder::Amount->label())->toBe('monto')
+        ->and(Placeholder::Amount->token())->toBe('{amount}');
 });

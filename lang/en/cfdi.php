@@ -26,6 +26,19 @@ return [
         'moved' => 'moved',
     ],
 
+    /*
+     * Pill labels. Unlike `credit_note_suffix`, these never reach the
+     * filesystem: they only name the placeholder on screen.
+     */
+    'placeholder_label' => [
+        'date' => 'date',
+        'type' => 'type',
+        'counterparty' => 'counterparty',
+        'amount' => 'amount',
+        'uuid' => 'uuid',
+        'credit_note' => 'credit note',
+    ],
+
     'placeholder' => [
         'date' => 'Issue date in YYYY-MM-DD format.',
         'type' => 'I if you are the issuer, G if you are the recipient.',

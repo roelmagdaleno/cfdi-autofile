@@ -27,6 +27,20 @@ return [
         'moved' => 'movido',
     ],
 
+    /*
+     * Etiquetas de las pastillas. A diferencia de `credit_note_suffix`, estas
+     * nunca llegan al disco: solo nombran el placeholder en pantalla, asi que
+     * si llevan acentos.
+     */
+    'placeholder_label' => [
+        'date' => 'fecha',
+        'type' => 'tipo',
+        'counterparty' => 'contraparte',
+        'amount' => 'monto',
+        'uuid' => 'uuid',
+        'credit_note' => 'nota de crédito',
+    ],
+
     'placeholder' => [
         'date' => 'Fecha de emision en formato YYYY-MM-DD.',
         'type' => 'I si eres el emisor, G si eres el receptor.',

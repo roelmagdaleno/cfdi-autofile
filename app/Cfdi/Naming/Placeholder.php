@@ -29,6 +29,12 @@ enum Placeholder: string
         return '{'.$this->value.'}';
     }
 
+    /** The human-readable name drawn on the pills. */
+    public function label(): string
+    {
+        return (string) __("cfdi.placeholder_label.{$this->value}");
+    }
+
     public function description(): string
     {
         return (string) __("cfdi.placeholder.{$this->value}");

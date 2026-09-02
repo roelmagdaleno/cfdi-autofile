@@ -177,7 +177,7 @@
                                     tabindex="0"
                                     class="rounded-md bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-800 ring-1 ring-zinc-950/[0.08] dark:bg-white/15 dark:text-zinc-100 dark:ring-white/10"
                                 >
-                                    {{ $segment['placeholder']->value }}
+                                    {{ $segment['placeholder']->label() }}
                                 </span>
                             </flux:tooltip>
                         @else

@@ -76,7 +76,7 @@
                                 x-on:click="insert('{{ $placeholder->value }}')"
                                 class="font-mono"
                             >
-                                {{ $placeholder->value }}
+                                {{ $placeholder->label() }}
                             </flux:button>
                         </flux:tooltip>
                     @endforeach

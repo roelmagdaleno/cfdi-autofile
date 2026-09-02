@@ -304,6 +304,7 @@ it('shows the RFC, the template and an example name', function (): void {
         ->assertSee('BBBB010101BBB')
         // The description only shows up in the pill's tooltip: it confirms the
         // template was drawn piece by piece and not as plain text.
+        ->assertSee(Placeholder::Date->label())
         ->assertSee(Placeholder::Date->description())
         ->assertSee(Placeholder::Type->description())
         ->assertSee('{folio}')
