@@ -2,6 +2,7 @@
 
 use App\Livewire\EditSettings;
 use App\Support\AppSettings;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 it('stores the RFC uppercased', function (): void {
@@ -162,3 +163,168 @@ it('rejects a type label that cannot be used', function (string $letter): void {
     'a slash' => ['a/b'],
     'a question mark' => ['a?b'],
 ]);
+
+/**
+ * Fills the fields the form always validates, so a test can focus on the Drive
+ * ones.
+ */
+function validSettings(): Testable
+{
+    return Livewire::test(EditSettings::class)
+        ->set('rfc', 'BBBB010101BBB')
+        ->set('template', AppSettings::DEFAULT_TEMPLATE);
+}
+
+it('has the drive integration off by default', function (): void {
+    Livewire::test(EditSettings::class)
+        ->assertSet('driveEnabled', false)
+        ->assertSet('driveConnected', false)
+        ->assertSet('driveIncomeFolder', '{year} - Emitidas')
+        ->assertSet('driveExpenseFolder', '{year} - Recibidas')
+        // The default alias is an implementation detail: an empty box reads as
+        // "the top of My Drive".
+        ->assertSet('driveRootFolderId', '');
+});
+
+it('saves the drive configuration', function (): void {
+    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+
+    validSettings()
+        ->set('driveEnabled', true)
+        ->set('driveRootFolderId', '1a2b3c')
+        ->set('driveIncomeFolder', 'Emitidas {year}')
+        ->set('driveExpenseFolder', 'Recibidas {year}')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $drive = app(AppSettings::class)->drive();
+
+    expect($drive->enabled)->toBeTrue()
+        ->and($drive->rootFolderId)->toBe('1a2b3c')
+        ->and($drive->incomeFolder)->toBe('Emitidas {year}');
+});
+
+it('falls back to the root of my drive when no folder id is given', function (): void {
+    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+
+    validSettings()
+        ->set('driveEnabled', true)
+        ->set('driveRootFolderId', '   ')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(app(AppSettings::class)->drive()->rootFolderId)->toBe('root');
+});
+
+// Turning the switch on without an authorized account would make every run fail
+// identically, twenty rows at a time.
+it('refuses to enable the integration without a connected account', function (): void {
+    validSettings()
+        ->set('driveEnabled', true)
+        ->call('save')
+        ->assertHasErrors('driveEnabled');
+
+    expect(app(AppSettings::class)->drive()->enabled)->toBeFalse();
+});
+
+it('rejects a folder name that cannot file by year', function (string $folder): void {
+    app(AppSettings::class)->setDriveRefreshToken('refresh-token-abc');
+
+    validSettings()
+        ->set('driveEnabled', true)
+        ->set('driveIncomeFolder', $folder)
+        ->call('save')
+        ->assertHasErrors('driveIncomeFolder');
+})->with([
+    'empty' => [''],
+    'no year token' => ['Emitidas'],
+    'wrong token' => ['{año} - Emitidas'],
+    'a slash' => ['{year}/Emitidas'],
+]);
+
+// Turning the integration off must never be blocked by the folder fields.
+it('allows saving with empty folder names while the integration is off', function (): void {
+    validSettings()
+        ->set('driveEnabled', false)
+        ->set('driveIncomeFolder', '')
+        ->set('driveExpenseFolder', '')
+        ->call('save')
+        ->assertHasNoErrors();
+});
+
+it('previews the folders of the current year', function (): void {
+    $year = now()->format('Y');
+
+    validSettings()
+        ->set('driveIncomeFolder', 'Emitidas {year}')
+        ->set('driveEnabled', true)
+        ->assertSee("Emitidas {$year}")
+        ->assertSee("{$year} - Recibidas");
+});
+
+it('forgets the account but keeps the folders when disconnecting', function (): void {
+    $settings = app(AppSettings::class);
+    $settings->setDriveRefreshToken('refresh-token-abc');
+    $settings->setDriveAccountEmail('facturas@example.com');
+
+    Livewire::test(EditSettings::class)
+        ->assertSet('driveConnected', true)
+        ->assertSet('driveEmail', 'facturas@example.com')
+        ->call('disconnectDrive')
+        ->assertSet('driveConnected', false)
+        ->assertSet('driveEmail', '')
+        ->assertSet('driveIncomeFolder', '{year} - Emitidas');
+
+    expect($settings->isDriveConnected())->toBeFalse();
+});
+
+it('verifies the folders of the current year against drive', function (): void {
+    $files = fakeDrive();
+    $year = (int) now()->format('Y');
+
+    Livewire::test(EditSettings::class)
+        ->set('driveEnabled', true)
+        ->call('verifyDrive')
+        ->assertHasNoErrors();
+
+    expect($files->created)->toBe(["{$year} - Emitidas", "{$year} - Recibidas"]);
+});
+
+it('reports a drive failure when verifying instead of throwing', function (): void {
+    $files = fakeDrive();
+    $year = (int) now()->format('Y');
+    $files->failFolder = "{$year} - Emitidas";
+
+    Livewire::test(EditSettings::class)
+        ->set('driveEnabled', true)
+        ->call('verifyDrive')
+        ->assertHasNoErrors();
+
+    expect($files->created)->toBe([]);
+});
+
+// The screen used to show "connected as" followed by nothing whenever the
+// address had not made it into the settings.
+it('fills in a missing account address on the next visit', function (): void {
+    fakeDrive();
+    app(AppSettings::class)->setDriveAccountEmail('');
+
+    Livewire::test(EditSettings::class)
+        ->assertSet('driveConnected', true)
+        ->assertSet('driveEmail', 'facturas@example.com')
+        ->assertSee('facturas@example.com');
+
+    expect(app(AppSettings::class)->driveAccountEmail())->toBe('facturas@example.com');
+});
+
+it('still reports the account as connected when drive will not name it', function (): void {
+    $files = fakeDrive();
+    $files->failAbout = true;
+    app(AppSettings::class)->setDriveAccountEmail('');
+
+    Livewire::test(EditSettings::class)
+        ->assertSet('driveConnected', true)
+        ->assertSet('driveEmail', '')
+        ->assertSee(__('ui.drive.connected_unknown'))
+        ->assertSee(__('ui.drive.disconnect'));
+});

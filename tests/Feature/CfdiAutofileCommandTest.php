@@ -382,3 +382,77 @@ it('does not index rejected files', function (): void {
 
     expect(Document::query()->count())->toBe(0);
 });
+
+it('uploads to drive from the command line', function (): void {
+    $files = fakeDrive();
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $result = runAutofile([
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--no-interactive' => true,
+    ]);
+
+    $document = Document::query()->sole();
+
+    expect($result['code'])->toBe(0)
+        ->and($files->folderOf($document->name))->toBe('2026 - Recibidas')
+        ->and($document->drive_link)->not->toBeNull()
+        ->and($result['output'])->toContain('Google Drive:')
+        ->and($result['output'])->toContain('1/1 uploaded to Google Drive.');
+});
+
+// An install that never touched the integration must produce byte for byte the
+// output it produced before the feature existed.
+it('says nothing about drive while the integration is off', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $result = runAutofile([
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--no-interactive' => true,
+    ]);
+
+    expect($result['output'])->not->toContain('Google Drive')
+        ->and(Document::query()->sole()->drive_link)->toBeNull();
+});
+
+// The command indexes the file where `--output` put it, without an archived
+// copy, so this proves the upload reads the right path in that mode.
+it('uploads the file the command left on disk, not an archived copy', function (): void {
+    $files = fakeDrive();
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    runAutofile([
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--no-interactive' => true,
+    ]);
+
+    $document = Document::query()->sole();
+
+    expect($document->disk)->toBeNull()
+        ->and($files->uploaded)->toBe([$document->name]);
+});
+
+it('reports an upload it could not do without failing the command', function (): void {
+    $files = fakeDrive();
+    $files->failUpload = '2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml';
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $result = runAutofile([
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--no-interactive' => true,
+    ]);
+
+    // The renaming succeeded, so the command succeeded.
+    expect($result['code'])->toBe(0)
+        ->and($result['output'])->toContain('storageQuotaExceeded')
+        ->and($result['output'])->toContain('0/1 uploaded to Google Drive.')
+        ->and(Document::query()->sole()->drive_link)->toBeNull();
+});

@@ -397,3 +397,112 @@ it('offers a download for every archived file from the table', function (): void
         ->call('analyze')
         ->assertSee(route('documents.download', ['document' => Document::query()->sole()->id]), escape: false);
 });
+
+it('uploads the run to drive and records the link on the run and the document', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    $files = fakeDrive();
+
+    $runId = Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze')
+        ->get('runId');
+
+    $runFile = Run::query()->findOrFail($runId)->files->sole();
+    $document = Document::query()->sole();
+
+    // The fixture is dated 2026-02-14 and the configured RFC is the recipient,
+    // so it is an expense: it belongs in that year's "received" folder.
+    expect($files->folderOf($document->name))->toBe('2026 - Recibidas')
+        ->and($runFile->drive_status)->toBe('uploaded')
+        ->and($runFile->drive_link)->toBe($document->drive_link)
+        ->and($runFile->drive_note)->toBeNull()
+        ->and($document->drive_link)->not->toBeNull();
+});
+
+// Off, nothing leaves this machine and the columns stay empty.
+it('leaves the drive columns alone while the integration is off', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+
+    $runId = Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze')
+        ->get('runId');
+
+    $runFile = Run::query()->findOrFail($runId)->files->sole();
+
+    expect($runFile->drive_status)->toBeNull()
+        ->and($runFile->drive_link)->toBeNull()
+        ->and(Document::query()->sole()->drive_link)->toBeNull();
+});
+
+// A discarded file was never placed, so it never had a shot at Drive. The row
+// still has to be written: the insert is a single bulk statement.
+it('leaves the drive columns empty on a discarded file', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    fakeDrive();
+
+    $runId = Livewire::test(RunCfdis::class)
+        ->set('files', [
+            fixtureUpload('example_cfdi.xml', 'invoice01.xml'),
+            UploadedFile::fake()->createWithContent('notes.txt', 'nothing'),
+        ])
+        ->call('analyze')
+        ->get('runId');
+
+    $rows = Run::query()->findOrFail($runId)->files;
+
+    expect($rows->firstWhere('original_name', 'notes.txt')->drive_status)->toBeNull()
+        ->and($rows->firstWhere('original_name', 'invoice01.xml')->drive_status)->toBe('uploaded');
+});
+
+it('records the reason and warns when an upload fails', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    $files = fakeDrive();
+    $files->failUpload = '2026-02-14 G CONTADOR - 11600.00.xml';
+
+    $component = Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze');
+
+    $runFile = Run::query()->findOrFail($component->get('runId'))->files->sole();
+
+    expect($runFile->drive_status)->toBe('failed')
+        ->and($runFile->drive_note)->toContain('storageQuotaExceeded')
+        ->and($runFile->drive_link)->toBeNull()
+        // The renaming still happened: a bad upload cannot undo the run.
+        ->and($runFile->status)->toBe('ok')
+        ->and($component->get('warnings'))->toHaveCount(1);
+});
+
+it('retries only the failed uploads', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    $files = fakeDrive();
+    $files->failUpload = '2026-02-14 G CONTADOR - 11600.00.xml';
+
+    $component = Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze')
+        ->assertSee(__('ui.drive.retry'));
+
+    $files->failUpload = null;
+
+    $component->call('retryDrive');
+
+    $runFile = Run::query()->findOrFail($component->get('runId'))->files->sole();
+
+    expect($runFile->drive_status)->toBe('uploaded')
+        ->and($runFile->drive_link)->not->toBeNull()
+        ->and(Document::query()->sole()->drive_link)->not->toBeNull();
+});
+
+it('offers no retry when nothing failed', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    fakeDrive();
+
+    Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze')
+        ->assertSet('step', 'results')
+        ->assertDontSee(__('ui.drive.retry'))
+        ->assertSee(__('ui.drive.open'));
+});

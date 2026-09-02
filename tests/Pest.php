@@ -1,10 +1,15 @@
 <?php
 
 use App\Cfdi\Parsing\PdfTextExtractor;
+use App\Drive\Contracts\DriveFiles;
+use App\Drive\Data\DriveConfig;
 use App\Models\Document;
+use App\Support\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\FakeDriveFiles;
 use Tests\Support\FakePdfTextExtractor;
 use Tests\TestCase;
 
@@ -12,9 +17,22 @@ use Tests\TestCase;
 // CFDI would write into the real `storage/app/cfdis`, and since the database is
 // reset between tests but the disk is not, it would pile up ` (2)`, ` (3)`, …
 // duplicates.
+//
+// Google Drive is ALWAYS faked, for the same reason: no test may reach the
+// network. The integration is off by default, so nothing calls it unless a test
+// turns it on -- but a bug that turned it on by accident would otherwise start
+// talking to Google with the developer's own credentials.
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
-    ->beforeEach(fn () => Storage::fake(Document::DISK))
+    ->beforeEach(function (): void {
+        Storage::fake(Document::DISK);
+
+        app()->instance(DriveFiles::class, new FakeDriveFiles);
+
+        // Belt and braces: any HTTP request that is not explicitly faked throws
+        // instead of leaving the machine.
+        Http::preventStrayRequests();
+    })
     ->in('Feature');
 
 // Unit tests boot the app too, without the database: the domain layer resolves
@@ -66,4 +84,27 @@ function fixtureUpload(string $name, ?string $as = null): UploadedFile
 function fakePdfText(string $text): void
 {
     app()->instance(PdfTextExtractor::class, new FakePdfTextExtractor($text));
+}
+
+/**
+ * Turns the Drive integration on with a connected account, and returns the fake
+ * the container will hand to `DriveSync`.
+ */
+function fakeDrive(?FakeDriveFiles $files = null): FakeDriveFiles
+{
+    $files ??= new FakeDriveFiles;
+
+    app()->instance(DriveFiles::class, $files);
+
+    $settings = app(AppSettings::class);
+    $settings->setDrive(new DriveConfig(
+        enabled: true,
+        rootFolderId: DriveConfig::ROOT,
+        incomeFolder: DriveConfig::DEFAULT_INCOME_FOLDER,
+        expenseFolder: DriveConfig::DEFAULT_EXPENSE_FOLDER,
+    ));
+    $settings->setDriveRefreshToken('refresh-token-abc');
+    $settings->setDriveAccountEmail('facturas@example.com');
+
+    return $files;
 }

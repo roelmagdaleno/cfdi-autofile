@@ -7,6 +7,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Livewire/** | .ai/rules/app-livewire.md |
 | app/Console/Commands/** | .ai/rules/commands.md |
 | app/Support/Documents/** | .ai/rules/documents.md |
+| app/Drive/** | .ai/rules/drive.md |
 | tests/Feature/** | .ai/rules/feature.md |
 | **/*.php | .ai/rules/general.md |
 | resources/views/livewire/** | .ai/rules/livewire.md |

@@ -348,6 +348,9 @@
                 <flux:table.column>{{ __('ui.common.status') }}</flux:table.column>
                 <flux:table.column>{{ __('ui.common.original') }}</flux:table.column>
                 <flux:table.column>{{ __('ui.common.new_name') }}</flux:table.column>
+                @if ($this->showsDriveColumn)
+                    <flux:table.column>{{ __('ui.drive.column') }}</flux:table.column>
+                @endif
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
 
@@ -373,6 +376,23 @@
                             @endif
                         </flux:table.cell>
                         <flux:table.cell class="font-mono text-xs whitespace-normal break-words">{{ $row->new_name ?? '—' }}</flux:table.cell>
+                        @if ($this->showsDriveColumn)
+                            <flux:table.cell class="max-w-xs whitespace-normal break-words">
+                                @if ($row->drive_link !== null)
+                                    <flux:link :href="$row->drive_link" target="_blank" class="text-xs">
+                                        {{ __('ui.drive.open') }}
+                                    </flux:link>
+                                @elseif ($status = $row->driveStatus())
+                                    <flux:text variant="subtle" class="text-xs">{{ $status->label() }}</flux:text>
+
+                                    @if ($row->drive_note !== null)
+                                        <span class="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{{ $row->drive_note }}</span>
+                                    @endif
+                                @else
+                                    <span class="text-xs text-zinc-400">—</span>
+                                @endif
+                            </flux:table.cell>
+                        @endif
                         <flux:table.cell>
                             @if ($url = $this->documentUrl($row->document))
                                 <flux:button :href="$url" size="xs" variant="ghost" icon="arrow-down-tray">
@@ -383,7 +403,7 @@
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="4">{{ __('ui.run.no_files') }}</flux:table.cell>
+                        <flux:table.cell :colspan="$this->showsDriveColumn ? 5 : 4">{{ __('ui.run.no_files') }}</flux:table.cell>
                     </flux:table.row>
                 @endforelse
             </flux:table.rows>
@@ -415,6 +435,18 @@
             @if ($this->downloadUrl !== null)
                 <flux:button :href="$this->downloadUrl" variant="primary" icon="arrow-down-tray">
                     {{ __('ui.run.download_zip') }}
+                </flux:button>
+            @endif
+
+            @if ($this->hasFailedDriveUploads)
+                <flux:button
+                    variant="filled"
+                    icon="arrow-path"
+                    wire:click="retryDrive"
+                    wire:loading.attr="disabled"
+                    wire:target="retryDrive"
+                >
+                    {{ __('ui.drive.retry') }}
                 </flux:button>
             @endif
 

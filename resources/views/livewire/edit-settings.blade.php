@@ -136,6 +136,118 @@
             <flux:text class="mt-3 font-mono break-all">{{ $this->preview }}</flux:text>
         </div>
 
+
+        {{--
+            The Drive card is a container with several inputs, so it does NOT use
+            `flux:field`: a `flux:label` inside one binds to the first input of
+            the block. It is a labelled group instead.
+        --}}
+        <div
+            role="group"
+            aria-label="{{ __('ui.drive.heading') }}"
+            class="space-y-4 rounded-xl border border-zinc-200 p-4 dark:border-white/10"
+        >
+            <div>
+                <flux:heading size="sm">{{ __('ui.drive.heading') }}</flux:heading>
+                <flux:text variant="subtle" class="mt-1 text-xs">{{ __('ui.drive.subheading') }}</flux:text>
+            </div>
+
+            @if (session('drive_status'))
+                <flux:callout variant="success" icon="check-circle" :heading="session('drive_status')" />
+            @endif
+
+            @if (session('drive_error'))
+                <flux:callout variant="danger" icon="exclamation-triangle" :heading="session('drive_error')" />
+            @endif
+
+            <flux:switch
+                wire:model.live="driveEnabled"
+                :label="__('ui.drive.enable')"
+                :description="__('ui.drive.enable_description')"
+            />
+
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
+                <flux:text class="text-sm">
+                    @if ($driveConnected && $driveEmail !== '')
+                        {{ __('ui.drive.connected_as', ['email' => $driveEmail]) }}
+                    @elseif ($driveConnected)
+                        {{-- Connected, but Drive would not say which account. --}}
+                        {{ __('ui.drive.connected_unknown') }}
+                    @else
+                        {{ __('ui.drive.not_connected') }}
+                    @endif
+                </flux:text>
+
+                <div class="flex gap-2">
+                    <flux:button
+                        size="xs"
+                        variant="filled"
+                        icon="arrow-top-right-on-square"
+                        :href="route('drive.connect')"
+                    >
+                        {{ $driveConnected ? __('ui.drive.reconnect') : __('ui.drive.connect') }}
+                    </flux:button>
+
+                    @if ($driveConnected)
+                        <flux:button type="button" size="xs" variant="subtle" wire:click="disconnectDrive">
+                            {{ __('ui.drive.disconnect') }}
+                        </flux:button>
+                    @endif
+                </div>
+            </div>
+
+            @if ($driveEnabled)
+                <flux:input
+                    wire:model="driveRootFolderId"
+                    :label="__('ui.drive.root_folder_label')"
+                    :description="__('ui.drive.root_folder_description')"
+                    class="font-mono"
+                    placeholder="1a2B3cD4eF5gH6iJ7kL8mN9oP"
+                />
+
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:input
+                        wire:model.live.debounce.400ms="driveIncomeFolder"
+                        :label="__('ui.drive.income_folder_label')"
+                        class="font-mono"
+                    />
+
+                    <flux:input
+                        wire:model.live.debounce.400ms="driveExpenseFolder"
+                        :label="__('ui.drive.expense_folder_label')"
+                        class="font-mono"
+                    />
+
+                    <flux:text variant="subtle" class="text-xs sm:col-span-2">
+                        {{ __('ui.drive.folders_description', ['token' => \App\Drive\DriveFolderTemplate::TOKEN]) }}
+                    </flux:text>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
+                    <div>
+                        <flux:text variant="subtle" class="text-xs">{{ __('ui.drive.preview') }}</flux:text>
+                        <flux:text class="mt-1 font-mono text-sm break-all">
+                            {{ $this->drivePreview['income'] }} · {{ $this->drivePreview['expense'] }}
+                        </flux:text>
+                    </div>
+
+                    <flux:button
+                        type="button"
+                        size="xs"
+                        variant="filled"
+                        icon="magnifying-glass"
+                        wire:click="verifyDrive"
+                        wire:loading.attr="disabled"
+                        wire:target="verifyDrive"
+                    >
+                        {{ __('ui.drive.verify') }}
+                    </flux:button>
+                </div>
+
+                <flux:text variant="subtle" class="text-xs">{{ __('ui.drive.scope_notice') }}</flux:text>
+            @endif
+        </div>
+
         <flux:button type="submit" variant="primary">{{ __('ui.common.save') }}</flux:button>
     </form>
 </div>

@@ -37,6 +37,9 @@ use Illuminate\Support\Facades\Storage;
  * @property string $path
  * @property int|null $size
  * @property string|null $checksum
+ * @property string|null $drive_file_id
+ * @property string|null $drive_link
+ * @property Carbon|null $drive_uploaded_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Counterparty|null $counterparty
@@ -64,6 +67,9 @@ class Document extends Model
         'path',
         'size',
         'checksum',
+        'drive_file_id',
+        'drive_link',
+        'drive_uploaded_at',
     ];
 
     /**
@@ -89,6 +95,14 @@ class Document extends Model
             : Storage::disk($this->disk)->path($this->path);
     }
 
+    /**
+     * The file has a copy in the user's Google Drive.
+     */
+    public function isOnDrive(): bool
+    {
+        return $this->drive_link !== null;
+    }
+
     public function fileExists(): bool
     {
         return is_file($this->absolutePath());
@@ -104,6 +118,7 @@ class Document extends Model
             // Without the cast, SQLite returns `11600` and the amount comes out
             // with no decimals.
             'total' => 'decimal:2',
+            'drive_uploaded_at' => 'datetime',
         ];
     }
 }

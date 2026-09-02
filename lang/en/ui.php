@@ -111,6 +111,44 @@ return [
         'start_over' => 'Process other files',
     ],
 
+    'drive' => [
+        'heading' => 'Google Drive',
+        'subheading' => 'Upload the CFDIs that processed cleanly to your Drive, filed by year and type.',
+        'enable' => 'Upload to Google Drive',
+        'enable_description' => 'Off, nothing leaves this machine and the rest of the app behaves the same.',
+        'connected_as' => 'Connected as :email',
+        'not_connected' => 'No Google account is connected yet.',
+        'connect' => 'Connect with Google',
+        'reconnect' => 'Reconnect',
+        'disconnect' => 'Disconnect',
+        'disconnected' => 'The Google account was disconnected.',
+        'connected' => 'Account connected: :email',
+        'connected_unknown' => 'Google account connected.',
+        'cancelled' => 'Access to Google Drive was not granted.',
+        'invalid_state' => "Google's answer does not belong to this session.",
+        'missing_credentials' => 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are missing from the .env file.',
+        'wrong_host' => 'Google does not accept .test domains, so the callback comes back to :host. Open :url to connect the account from there (start the server with "php artisan serve"). Once connected, the integration works from this domain as usual.',
+        'root_folder_label' => 'Root folder',
+        'root_folder_description' => 'The id of the folder that holds your year folders. Take it from the folder URL in Drive. Leave it empty to use the top of "My Drive".',
+        'income_folder_label' => 'Issued folder',
+        'expense_folder_label' => 'Received folder',
+        'folders_description' => 'Use :token where the year goes. Missing folders are created for you.',
+        'preview' => 'This year it would use',
+        'verify' => 'Verify folders',
+        'verified' => 'Done: :income and :expense.',
+        'scope_notice' => 'Google asks for the full Drive permission because the restricted one cannot see folders this app did not create. Leave the consent screen in "Testing" mode with your account as a test user.',
+        'column' => 'Drive',
+        'open' => 'Open in Drive',
+        'retry' => 'Retry upload',
+        'retried' => 'The upload was retried.',
+
+        'status' => [
+            'uploaded' => 'Uploaded',
+            'skipped' => 'Not uploaded',
+            'failed' => 'Failed',
+        ],
+    ],
+
     'validation' => [
         'rfc' => [
             'required' => 'Enter your RFC.',
@@ -143,5 +181,13 @@ return [
             'item_required' => 'One of the files did not upload correctly.',
             'item_max' => 'Each file must be at most 20 MB.',
         ],
+        'drive' => [
+            'not_connected' => 'Connect a Google account before turning the integration on.',
+            'folder_required' => 'Enter a folder name.',
+            'folder_token' => 'The folder name must include :token, or every year would go to the same folder.',
+            'folder_max' => 'The folder name must be at most :max characters.',
+            'folder_format' => 'The folder name cannot contain / or \\.',
+        ],
+
     ],
 ];

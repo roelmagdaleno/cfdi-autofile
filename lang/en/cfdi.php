@@ -80,6 +80,26 @@ return [
         'rfc_not_a_party' => 'your RFC :rfc does not appear as issuer or recipient',
     ],
 
+    /*
+     * Reasons that end up in the "Drive" column of the results table and in the
+     * run's warnings.
+     */
+    'drive' => [
+        'not_connected' => 'No Google account is connected. Connect one in Settings.',
+        'no_refresh_token' => 'Google did not return a refresh token. Revoke the app in your Google account and connect it again.',
+        'request_failed' => 'Google Drive answered :status on :operation. :detail',
+
+        'skipped' => [
+            'no_date' => 'Not uploaded: the CFDI has no issue date, so there is no year to file it under.',
+            'unknown_type' => 'Not uploaded: your RFC is not on the CFDI, so it is neither issued nor received.',
+            'missing_file' => 'Not uploaded: the file is no longer where it was.',
+        ],
+
+        'warning' => [
+            'some_failed' => ':count file(s) could not be uploaded to Google Drive. You can retry from the table.',
+        ],
+    ],
+
     'error' => [
         'invalid_file_name' => 'Invalid file name.',
         'run_produced_no_files' => 'The run produced no files.',

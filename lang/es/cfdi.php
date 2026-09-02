@@ -82,6 +82,27 @@ return [
         'rfc_not_a_party' => 'tu RFC :rfc no aparece como emisor ni receptor',
     ],
 
+    /*
+     * Razones que terminan en la columna «Drive» de la tabla de resultados y en
+     * las advertencias de la corrida. No llegan al disco, así que llevan
+     * acentos.
+     */
+    'drive' => [
+        'not_connected' => 'No hay una cuenta de Google conectada. Conéctala en Ajustes.',
+        'no_refresh_token' => 'Google no devolvió un refresh token. Revoca el acceso de la app en tu cuenta de Google y vuelve a conectarla.',
+        'request_failed' => 'Google Drive respondió :status en :operation. :detail',
+
+        'skipped' => [
+            'no_date' => 'No se subió: el CFDI no tiene fecha de emisión, así que no hay año de carpeta.',
+            'unknown_type' => 'No se subió: tu RFC no aparece en el CFDI, así que no es ni emitida ni recibida.',
+            'missing_file' => 'No se subió: el archivo ya no está en su ubicación.',
+        ],
+
+        'warning' => [
+            'some_failed' => ':count archivo(s) no se pudieron subir a Google Drive. Puedes reintentarlo desde la tabla.',
+        ],
+    ],
+
     'error' => [
         'invalid_file_name' => 'Nombre de archivo invalido.',
         'run_produced_no_files' => 'La corrida no produjo archivos.',

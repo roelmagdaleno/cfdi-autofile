@@ -32,6 +32,13 @@ return [
         'ask_rfc' => 'Your RFC (saved for next time): ',
         'rfc_required' => 'Error: your RFC is needed to know who the counterparty is.',
 
+        'drive' => [
+            'heading' => 'Google Drive:',
+            'uploaded' => '  :name -> :link',
+            'not_uploaded' => '  :name: :reason',
+            'summary' => ':count/:total uploaded to Google Drive.',
+        ],
+
         'table' => [
             'status' => 'Status',
             'original' => 'Original',

@@ -5,12 +5,16 @@ namespace App\Console\Commands;
 use App\Cfdi\CfdiProcessor;
 use App\Cfdi\Data\FileResult;
 use App\Cfdi\Data\ProcessOptions;
+use App\Cfdi\Data\ProcessResult;
 use App\Cfdi\FileCollector;
 use App\Cfdi\Naming\CounterpartyNamePrompt;
 use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
 use App\Console\Prompts\ConsoleNamePrompt;
+use App\Drive\Data\DriveStatus;
+use App\Drive\Data\DriveSyncResult;
+use App\Drive\DriveSync;
 use App\Support\AppSettings;
 use App\Support\Documents\DocumentArchiver;
 use Illuminate\Console\Command;
@@ -139,7 +143,11 @@ final class CfdiAutofileCommand extends Command
         // Indexing only: the file already lives where `--output` asked, and
         // copying it into the internal archive again would duplicate every byte
         // for nothing.
-        $archiver->archive($result, copyIntoArchive: false);
+        $documents = $archiver->archive($result, copyIntoArchive: false);
+
+        // Uploading comes last and cannot fail the command: the files are
+        // already renamed and in place.
+        $drive = app(DriveSync::class)->sync($documents);
 
         $this->newLine();
         $this->line((string) __('console.autofile.output_directory', ['directory' => $result->outputDirectory]));
@@ -147,14 +155,24 @@ final class CfdiAutofileCommand extends Command
 
         $this->renderTable([...$errorRows, ...$result->rows]);
 
-        if ($result->warnings !== []) {
+        // The processor's warnings already carry the `  ⚠ {file}: ` prefix;
+        // a Drive warning is about the run as a whole, so it gets the marker
+        // here rather than a file name it does not have.
+        $warnings = [
+            ...$result->warnings,
+            ...array_map(static fn (string $warning): string => '  ⚠ '.$warning, $drive->warnings),
+        ];
+
+        if ($warnings !== []) {
             $this->newLine();
             $this->line((string) __('console.autofile.warnings'));
 
-            foreach ($result->warnings as $warning) {
+            foreach ($warnings as $warning) {
                 $this->output->writeln($warning, OutputInterface::OUTPUT_RAW);
             }
         }
+
+        $this->renderDrive($result, $drive);
 
         $this->newLine();
         $this->line((string) __('console.autofile.summary', [
@@ -163,6 +181,50 @@ final class CfdiAutofileCommand extends Command
         ]));
 
         return $result->allOk() ? self::SUCCESS : 2;
+    }
+
+    /**
+     * Where each file landed in Drive, or why it did not.
+     *
+     * Prints nothing at all when the integration is off, so the output of an
+     * install that never touched it is byte for byte what it was before.
+     */
+    private function renderDrive(ProcessResult $result, DriveSyncResult $drive): void
+    {
+        if ($drive->outcomes === []) {
+            return;
+        }
+
+        $this->newLine();
+        $this->line((string) __('console.autofile.drive.heading'));
+
+        $uploaded = 0;
+
+        foreach ($drive->outcomes as $index => $outcome) {
+            $name = $result->rows[$index]->newName ?? $result->rows[$index]->original;
+
+            if ($outcome->status === DriveStatus::Uploaded) {
+                $uploaded++;
+
+                $this->output->writeln(
+                    (string) __('console.autofile.drive.uploaded', ['name' => $name, 'link' => (string) $outcome->link]),
+                    OutputInterface::OUTPUT_RAW,
+                );
+
+                continue;
+            }
+
+            $this->output->writeln(
+                (string) __('console.autofile.drive.not_uploaded', ['name' => $name, 'reason' => (string) $outcome->reason]),
+                OutputInterface::OUTPUT_RAW,
+            );
+        }
+
+        $this->newLine();
+        $this->line((string) __('console.autofile.drive.summary', [
+            'count' => $uploaded,
+            'total' => count($drive->outcomes),
+        ]));
     }
 
     private function saveLetters(AppSettings $settings, ?string $income, ?string $expense): int

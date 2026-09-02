@@ -111,6 +111,44 @@ return [
         'start_over' => 'Procesar otros archivos',
     ],
 
+    'drive' => [
+        'heading' => 'Google Drive',
+        'subheading' => 'Sube a tu Drive los CFDIs que se procesaron bien, ordenados por año y por tipo.',
+        'enable' => 'Subir a Google Drive',
+        'enable_description' => 'Apagado, nada sale de esta máquina y el resto de la app funciona igual.',
+        'connected_as' => 'Conectado como :email',
+        'not_connected' => 'Todavía no has conectado una cuenta de Google.',
+        'connect' => 'Conectar con Google',
+        'reconnect' => 'Reconectar',
+        'disconnect' => 'Desconectar',
+        'disconnected' => 'Se desconectó la cuenta de Google.',
+        'connected' => 'Cuenta conectada: :email',
+        'connected_unknown' => 'Cuenta de Google conectada.',
+        'cancelled' => 'No se autorizó el acceso a Google Drive.',
+        'invalid_state' => 'La respuesta de Google no corresponde a esta sesión.',
+        'missing_credentials' => 'Faltan GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en el archivo .env.',
+        'wrong_host' => 'Google no acepta dominios .test, así que el callback vuelve a :host. Abre :url para conectar la cuenta desde ahí (arranca el servidor con «php artisan serve»). Una vez conectada, la integración funciona igual desde este dominio.',
+        'root_folder_label' => 'Carpeta raíz',
+        'root_folder_description' => 'El ID de la carpeta que contiene tus carpetas de año. Se saca de la URL de la carpeta en Drive. Déjalo vacío para usar el tope de «Mi unidad».',
+        'income_folder_label' => 'Carpeta de emitidas',
+        'expense_folder_label' => 'Carpeta de recibidas',
+        'folders_description' => 'Usa :token donde vaya el año. Las carpetas que falten se crean solas.',
+        'preview' => 'Este año se usarían',
+        'verify' => 'Verificar carpetas',
+        'verified' => 'Listo: :income y :expense.',
+        'scope_notice' => 'Google pide el permiso completo de Drive porque el permiso reducido no puede ver carpetas que no creó esta app. Deja la pantalla de consentimiento en modo «Testing» con tu cuenta como usuario de prueba.',
+        'column' => 'Drive',
+        'open' => 'Ver en Drive',
+        'retry' => 'Reintentar subida',
+        'retried' => 'Se reintentó la subida.',
+
+        'status' => [
+            'uploaded' => 'Subido',
+            'skipped' => 'No subido',
+            'failed' => 'Falló',
+        ],
+    ],
+
     'validation' => [
         'rfc' => [
             'required' => 'Escribe tu RFC.',
@@ -143,5 +181,13 @@ return [
             'item_required' => 'Alguno de los archivos no se subió bien.',
             'item_max' => 'Cada archivo debe pesar máximo 20 MB.',
         ],
+        'drive' => [
+            'not_connected' => 'Conecta una cuenta de Google antes de activar la integración.',
+            'folder_required' => 'Escribe un nombre de carpeta.',
+            'folder_token' => 'El nombre de la carpeta debe incluir :token, o todos los años irían a la misma carpeta.',
+            'folder_max' => 'El nombre de la carpeta debe tener máximo :max caracteres.',
+            'folder_format' => 'El nombre de la carpeta no puede llevar / ni \\.',
+        ],
+
     ],
 ];

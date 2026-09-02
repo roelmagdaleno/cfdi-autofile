@@ -18,6 +18,25 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    /*
+     * The OAuth client that authorizes the Google Drive integration.
+     *
+     * These are application credentials, not user data, so they live in the
+     * environment. What belongs to the user -- the refresh token -- is stored
+     * encrypted in the `settings` table instead. See `App\Support\AppSettings`.
+     *
+     * The redirect URI has to match, byte for byte, one of the "Authorized
+     * redirect URIs" of the OAuth client in Google Cloud Console.
+     */
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env(
+            'GOOGLE_REDIRECT_URI',
+            rtrim((string) env('APP_URL', 'http://localhost'), '/').'/drive/callback',
+        ),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

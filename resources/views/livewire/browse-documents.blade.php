@@ -90,6 +90,18 @@
                                 <flux:badge size="sm" color="amber">{{ __('ui.documents.file_not_found') }}</flux:badge>
                             @endif
 
+                            @if ($document->isOnDrive())
+                                <flux:tooltip :content="__('ui.drive.open')">
+                                    <flux:button
+                                        :href="$document->drive_link"
+                                        target="_blank"
+                                        size="sm"
+                                        variant="ghost"
+                                        icon="cloud"
+                                    />
+                                </flux:tooltip>
+                            @endif
+
                             <flux:button
                                 size="sm"
                                 variant="ghost"

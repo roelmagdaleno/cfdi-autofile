@@ -6,10 +6,17 @@ use App\Cfdi\Data\TypeLetter;
 use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
+use App\Drive\Contracts\DriveFiles;
+use App\Drive\Data\DriveConfig;
+use App\Drive\DriveAccount;
+use App\Drive\DriveFolderResolver;
+use App\Drive\DriveFolderTemplate;
+use App\Drive\Exceptions\DriveException;
 use App\Support\AppSettings;
 use Closure;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
@@ -17,6 +24,7 @@ use Livewire\Component;
  * @property-read string $preview
  * @property-read TypeLetters $typeLetters
  * @property-read list<Placeholder> $placeholders
+ * @property-read array{income: string, expense: string} $drivePreview
  */
 final class EditSettings extends Component
 {
@@ -33,6 +41,24 @@ final class EditSettings extends Component
     /** Type letter used to build the example. It only affects the preview. */
     public string $previewType = TypeLetter::Expense->value;
 
+    public bool $driveEnabled = false;
+
+    /** Empty means the top of "My Drive". */
+    public string $driveRootFolderId = '';
+
+    public string $driveIncomeFolder = '';
+
+    public string $driveExpenseFolder = '';
+
+    /**
+     * Read once on mount rather than through a computed property: the OAuth
+     * flow leaves the page and comes back, so a fresh mount is the only moment
+     * this can change.
+     */
+    public bool $driveConnected = false;
+
+    public string $driveEmail = '';
+
     public function mount(AppSettings $settings): void
     {
         $this->rfc = $settings->rfc() ?? '';
@@ -41,6 +67,8 @@ final class EditSettings extends Component
         $letters = $settings->typeLetters();
         $this->letterIncome = $letters->income;
         $this->letterExpense = $letters->expense;
+
+        $this->hydrateDrive($settings);
     }
 
     /**
@@ -121,7 +149,103 @@ final class EditSettings extends Component
         $this->letterIncome = $letters->income;
         $this->letterExpense = $letters->expense;
 
+        $settings->setDrive($this->driveConfig());
+        $this->hydrateDrive($settings);
+
         Flux::toast(variant: 'success', text: __('ui.settings.saved'));
+    }
+
+    /**
+     * Forgets the authorization without touching the folder configuration, so
+     * reconnecting does not mean setting the templates up again.
+     */
+    public function disconnectDrive(AppSettings $settings): void
+    {
+        $settings->disconnectDrive();
+
+        $this->hydrateDrive($settings);
+
+        Flux::toast(variant: 'success', text: __('ui.drive.disconnected'));
+    }
+
+    /**
+     * Resolves this year's two folders against Drive, creating them if needed.
+     *
+     * It runs against what is TYPED, not what is saved, so it answers the only
+     * question that matters before the first run: is this root folder id right,
+     * and are these the folders I already use?
+     */
+    public function verifyDrive(AppSettings $settings, DriveFiles $files): void
+    {
+        if (! $settings->isDriveConnected()) {
+            Flux::toast(variant: 'danger', text: __('ui.validation.drive.not_connected'));
+
+            return;
+        }
+
+        $this->validate([
+            'driveIncomeFolder' => $this->driveFolderRules(),
+            'driveExpenseFolder' => $this->driveFolderRules(),
+        ]);
+
+        $resolver = new DriveFolderResolver($files, $this->driveConfig());
+        $year = (int) now()->format('Y');
+
+        try {
+            $resolver->folderIdFor(TypeLetter::Income, "{$year}-01-01");
+            $resolver->folderIdFor(TypeLetter::Expense, "{$year}-01-01");
+        } catch (DriveException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+
+        Flux::toast(variant: 'success', text: __('ui.drive.verified', $this->drivePreview));
+    }
+
+    /**
+     * The two folder names the current form values would produce this year.
+     *
+     * @return array{income: string, expense: string}
+     */
+    #[Computed]
+    public function drivePreview(): array
+    {
+        $year = (int) now()->format('Y');
+
+        return [
+            'income' => (new DriveFolderTemplate(trim($this->driveIncomeFolder)))->render($year),
+            'expense' => (new DriveFolderTemplate(trim($this->driveExpenseFolder)))->render($year),
+        ];
+    }
+
+    private function hydrateDrive(AppSettings $settings): void
+    {
+        $drive = $settings->drive();
+
+        $this->driveEnabled = $drive->enabled;
+        // The default alias is an implementation detail: an empty box reads as
+        // "the top of My Drive", which is what it means.
+        $this->driveRootFolderId = $drive->rootFolderId === DriveConfig::ROOT ? '' : $drive->rootFolderId;
+        $this->driveIncomeFolder = $drive->incomeFolder;
+        $this->driveExpenseFolder = $drive->expenseFolder;
+        $this->driveConnected = $settings->isDriveConnected();
+        // Resolved through `DriveAccount` rather than read straight from the
+        // settings: an install whose address never made it in gets it filled on
+        // this visit instead of showing "connected as" and nothing.
+        $this->driveEmail = app(DriveAccount::class)->email() ?? '';
+    }
+
+    private function driveConfig(): DriveConfig
+    {
+        $root = trim($this->driveRootFolderId);
+
+        return new DriveConfig(
+            enabled: $this->driveEnabled,
+            rootFolderId: $root === '' ? DriveConfig::ROOT : $root,
+            incomeFolder: trim($this->driveIncomeFolder),
+            expenseFolder: trim($this->driveExpenseFolder),
+        );
     }
 
     /**
@@ -163,7 +287,54 @@ final class EditSettings extends Component
             }],
             'letterIncome' => $this->letterRules(),
             'letterExpense' => $this->letterRules(),
+            'driveEnabled' => ['boolean', function (string $attribute, mixed $value, Closure $fail): void {
+                // Turning the switch on without an authorized account would
+                // make every run fail identically, twenty rows at a time.
+                if ($value === true && ! $this->driveConnected) {
+                    $fail((string) __('ui.validation.drive.not_connected'));
+                }
+            }],
+            'driveRootFolderId' => ['nullable', 'string', 'max:255'],
+            'driveIncomeFolder' => $this->driveFolderRules(),
+            'driveExpenseFolder' => $this->driveFolderRules(),
         ];
+    }
+
+    /**
+     * The folder names are only enforced while the integration is on, so
+     * turning it off is never blocked by them.
+     *
+     * `requiredIf` rather than a check inside the closure: Laravel skips
+     * non-implicit rules on an empty value, so a closure alone never sees the
+     * blank field it is supposed to reject.
+     *
+     * @return array<int, mixed>
+     */
+    private function driveFolderRules(): array
+    {
+        return [Rule::requiredIf(fn (): bool => $this->driveEnabled), 'string', function (string $attribute, mixed $value, Closure $fail): void {
+            if (! $this->driveEnabled) {
+                return;
+            }
+
+            $template = trim(is_string($value) ? $value : '');
+
+            if (mb_strlen($template) > DriveFolderTemplate::MAX_LENGTH) {
+                $fail((string) __('ui.validation.drive.folder_max', ['max' => DriveFolderTemplate::MAX_LENGTH]));
+
+                return;
+            }
+
+            if (! str_contains($template, DriveFolderTemplate::TOKEN)) {
+                $fail((string) __('ui.validation.drive.folder_token', ['token' => DriveFolderTemplate::TOKEN]));
+
+                return;
+            }
+
+            if (! DriveFolderTemplate::isValid($template)) {
+                $fail((string) __('ui.validation.drive.folder_format'));
+            }
+        }];
     }
 
     /**
@@ -209,6 +380,8 @@ final class EditSettings extends Component
             'template.max' => (string) __('ui.validation.template.max'),
             'letterIncome.required' => (string) __('ui.validation.letter.required'),
             'letterExpense.required' => (string) __('ui.validation.letter.required'),
+            'driveIncomeFolder.required' => (string) __('ui.validation.drive.folder_required'),
+            'driveExpenseFolder.required' => (string) __('ui.validation.drive.folder_required'),
         ];
     }
 }

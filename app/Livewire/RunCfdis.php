@@ -15,6 +15,9 @@ use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
+use App\Drive\Data\DriveOutcome;
+use App\Drive\Data\DriveStatus;
+use App\Drive\DriveSync;
 use App\Models\Counterparty;
 use App\Models\Document;
 use App\Models\Run;
@@ -23,6 +26,7 @@ use App\Support\AppSettings;
 use App\Support\Documents\DocumentArchiver;
 use App\Support\Runs\RunAnalyzer;
 use App\Support\Runs\RunStorage;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL as UrlGenerator;
@@ -45,6 +49,8 @@ use Livewire\WithFileUploads;
  * @property-read TypeLetters $typeLetters
  * @property-read string|null $downloadUrl
  * @property-read Collection<int, RunFile> $allRows
+ * @property-read bool $hasFailedDriveUploads
+ * @property-read bool $showsDriveColumn
  */
 final class RunCfdis extends Component
 {
@@ -349,6 +355,77 @@ final class RunCfdis extends Component
     }
 
     /**
+     * Retries the Drive upload of the rows that failed.
+     *
+     * Only failures are retried, never skips: a CFDI with no issue date has no
+     * folder to go to, and asking again would produce the same answer.
+     */
+    public function retryDrive(DriveSync $sync): void
+    {
+        $failed = RunFile::query()
+            ->with('document')
+            ->where('run_id', $this->runId)
+            ->where('drive_status', DriveStatus::Failed->value)
+            ->get();
+
+        $documents = $failed
+            ->filter(fn (RunFile $file): bool => $file->document !== null)
+            ->mapWithKeys(fn (RunFile $file): array => [$file->id => $file->document])
+            ->all();
+
+        if ($documents === []) {
+            return;
+        }
+
+        $result = $sync->sync($documents);
+
+        foreach ($result->outcomes as $runFileId => $outcome) {
+            RunFile::query()->whereKey($runFileId)->update([
+                'drive_status' => $outcome->status->value,
+                'drive_link' => $outcome->link,
+                'drive_note' => $outcome->reason,
+            ]);
+        }
+
+        unset($this->allRows);
+
+        Flux::toast(variant: 'success', text: __('ui.drive.retried'));
+    }
+
+    /**
+     * Whether any row of this run is worth retrying.
+     */
+    #[Computed]
+    public function hasFailedDriveUploads(): bool
+    {
+        if ($this->runId === '') {
+            return false;
+        }
+
+        return RunFile::query()
+            ->where('run_id', $this->runId)
+            ->where('drive_status', DriveStatus::Failed->value)
+            ->exists();
+    }
+
+    /**
+     * Whether the Drive column belongs in the table at all: it does not when
+     * the integration was off for this run.
+     */
+    #[Computed]
+    public function showsDriveColumn(): bool
+    {
+        if ($this->runId === '') {
+            return false;
+        }
+
+        return RunFile::query()
+            ->where('run_id', $this->runId)
+            ->whereNotNull('drive_status')
+            ->exists();
+    }
+
+    /**
      * Signed link to download a single file from the results table.
      */
     public function documentUrl(?Document $document): ?string
@@ -417,14 +494,19 @@ final class RunCfdis extends Component
         // originals are temporary uploads that `cfdi:clean` deletes.
         $documents = $archiver->archive($result, copyIntoArchive: true);
 
-        $this->warnings = $result->warnings;
+        // Uploading is the last thing that happens, and it cannot fail the run:
+        // the files are already renamed and archived, so a network blip must not
+        // undo that. `DriveSync` returns failures as values.
+        $drive = app(DriveSync::class)->sync($documents);
+
+        $this->warnings = [...$result->warnings, ...$drive->warnings];
         $this->totalFiles = $result->totalFiles;
         $this->okFiles = $result->okFiles;
         $this->ignoredFiles = count($collected->errors);
         $this->step = self::STEP_RESULTS;
 
         $this->persist();
-        $this->persistFiles($collected->errors, $result, $documents);
+        $this->persistFiles($collected->errors, $result, $documents, $drive->outcomes);
 
         unset($this->allRows);
     }
@@ -447,8 +529,9 @@ final class RunCfdis extends Component
      *
      * @param  list<CollectionError>  $errors
      * @param  array<int, Document>  $documents
+     * @param  array<int, DriveOutcome>  $outcomes  empty when the integration is off
      */
-    private function persistFiles(array $errors, ProcessResult $result, array $documents): void
+    private function persistFiles(array $errors, ProcessResult $result, array $documents, array $outcomes = []): void
     {
         RunFile::query()->where('run_id', $this->runId)->delete();
 
@@ -464,10 +547,19 @@ final class RunCfdis extends Component
                 'original_name' => $error->subject,
                 'new_name' => null,
                 'note' => $error->reason,
+                // A discarded file was never placed, so it never had a shot at
+                // Drive. The keys still have to be here: `insert()` below is a
+                // single bulk statement and every row must carry the same
+                // columns.
+                'drive_status' => null,
+                'drive_link' => null,
+                'drive_note' => null,
             ];
         }
 
         foreach ($result->rows as $index => $row) {
+            $outcome = $outcomes[$index] ?? null;
+
             $rows[] = [
                 'run_id' => $this->runId,
                 'document_id' => ($documents[$index] ?? null)?->id,
@@ -476,6 +568,9 @@ final class RunCfdis extends Component
                 'original_name' => $row->original,
                 'new_name' => $row->newName,
                 'note' => $row->note,
+                'drive_status' => $outcome?->status->value,
+                'drive_link' => $outcome?->link,
+                'drive_note' => $outcome?->reason,
             ];
         }
 

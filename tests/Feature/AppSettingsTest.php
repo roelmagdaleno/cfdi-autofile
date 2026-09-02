@@ -1,6 +1,7 @@
 <?php
 
 use App\Cfdi\Naming\TypeLetters;
+use App\Drive\Data\DriveConfig;
 use App\Models\Setting;
 use App\Support\AppSettings;
 
@@ -68,4 +69,62 @@ it('overwrites instead of duplicating', function (): void {
 
     expect($this->settings->rfc())->toBe('BBB020202BBB');
     expect(Setting::query()->where('key', 'rfc')->count())->toBe(1);
+});
+
+it('defaults the drive integration to off with the spanish folder names', function (): void {
+    $drive = $this->settings->drive();
+
+    expect($drive->enabled)->toBeFalse()
+        ->and($drive->rootFolderId)->toBe('root')
+        ->and($drive->incomeFolder)->toBe('{year} - Emitidas')
+        ->and($drive->expenseFolder)->toBe('{year} - Recibidas')
+        ->and($this->settings->isDriveConnected())->toBeFalse()
+        ->and($this->settings->driveAccountEmail())->toBeNull();
+});
+
+it('stores and reads back the drive configuration', function (): void {
+    $this->settings->setDrive(new DriveConfig(
+        enabled: true,
+        rootFolderId: '  1a2b3c  ',
+        incomeFolder: '  Emitidas {year}  ',
+        expenseFolder: 'Recibidas {year}',
+    ));
+
+    $drive = $this->settings->drive();
+
+    expect($drive->enabled)->toBeTrue()
+        ->and($drive->rootFolderId)->toBe('1a2b3c')
+        ->and($drive->incomeFolder)->toBe('Emitidas {year}')
+        ->and($drive->expenseFolder)->toBe('Recibidas {year}');
+});
+
+// A refresh token is a long-lived password for the user's whole Drive.
+it('encrypts the drive refresh token at rest', function (): void {
+    $this->settings->setDriveRefreshToken('super-secret');
+
+    $stored = Setting::query()->where('key', AppSettings::KEY_DRIVE_REFRESH_TOKEN)->value('value');
+
+    expect($stored)->not->toBe('super-secret')
+        ->and($this->settings->driveRefreshToken())->toBe('super-secret');
+});
+
+// `APP_KEY` was rotated: the token is unrecoverable, and reporting it as "not
+// connected" sends the user to reconnect instead of blowing up mid-run.
+it('treats an undecryptable token as not connected', function (): void {
+    Setting::query()->create(['key' => AppSettings::KEY_DRIVE_REFRESH_TOKEN, 'value' => 'not-encrypted-at-all']);
+
+    expect($this->settings->driveRefreshToken())->toBeNull()
+        ->and($this->settings->isDriveConnected())->toBeFalse();
+});
+
+it('keeps the folder configuration when the account is disconnected', function (): void {
+    $this->settings->setDrive(new DriveConfig(true, '1a2b3c', 'Emitidas {year}', 'Recibidas {year}'));
+    $this->settings->setDriveRefreshToken('super-secret');
+    $this->settings->setDriveAccountEmail('facturas@example.com');
+
+    $this->settings->disconnectDrive();
+
+    expect($this->settings->isDriveConnected())->toBeFalse()
+        ->and($this->settings->driveAccountEmail())->toBeNull()
+        ->and($this->settings->drive()->rootFolderId)->toBe('1a2b3c');
 });
