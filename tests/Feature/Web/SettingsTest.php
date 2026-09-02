@@ -328,3 +328,9 @@ it('still reports the account as connected when drive will not name it', functio
         ->assertSee(__('ui.drive.connected_unknown'))
         ->assertSee(__('ui.drive.disconnect'));
 });
+
+it('renders the template section as a labelled group', function (): void {
+    Livewire::test(EditSettings::class)
+        ->assertSee('Name template')
+        ->assertSeeHtml('aria-label="Name template"');
+});
