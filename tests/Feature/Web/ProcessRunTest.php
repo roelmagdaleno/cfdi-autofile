@@ -1,6 +1,7 @@
 <?php
 
 use App\Cfdi\Naming\Placeholder;
+use App\Cfdi\Naming\TypeLetters;
 use App\Livewire\RunCfdis;
 use App\Models\Counterparty;
 use App\Models\Document;
@@ -309,6 +310,27 @@ it('shows the RFC, the template and an example name', function (): void {
         ->assertSee(Placeholder::Type->description())
         ->assertSee('{folio}')
         ->assertSee('2026-02-14 G - {folio}.xml');
+});
+
+it('names the file with the configured label', function (): void {
+    Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
+    app(AppSettings::class)->setTypeLetters(new TypeLetters(income: 'E', expense: 'R'));
+
+    $component = Livewire::test(RunCfdis::class)
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->call('analyze')
+        ->assertHasNoErrors()
+        ->assertSee('2026-02-14 R CONTADOR - 11600.00.xml');
+
+    expect(outputNames($component->get('runId')))->toBe(['2026-02-14 R CONTADOR - 11600.00.xml']);
+});
+
+it('describes the type piece with the configured labels', function (): void {
+    app(AppSettings::class)->setTypeLetters(new TypeLetters(income: 'E', expense: 'R'));
+
+    Livewire::test(RunCfdis::class)
+        ->assertSee('E if you are the issuer, R if you are the recipient.')
+        ->assertSee('2026-02-14 R SERVICIOS CONTABLES NORTE - 11600.00.xml');
 });
 
 it('stores the run result in the database', function (): void {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Cfdi\Naming\TypeLetters;
 use App\Models\Document;
 use App\Support\AppSettings;
 use Illuminate\Support\Facades\Artisan;
@@ -128,6 +129,67 @@ it('--set-template persists the template', function (): void {
         ->assertExitCode(0);
 
     expect(app(AppSettings::class)->template())->toBe('{type} {date} - {counterparty}');
+});
+
+it('--set-letter-expense persists the label and leaves the other one alone', function (): void {
+    $this->artisan('cfdi:autofile', ['--set-letter-expense' => 'R'])
+        ->expectsOutputToContain('Saved labels: I for income, R for expenses.')
+        ->assertExitCode(0);
+
+    $letters = app(AppSettings::class)->typeLetters();
+
+    expect($letters->expense)->toBe('R')
+        ->and($letters->income)->toBe('I');
+});
+
+it('--set-letter-income rejects a label that cannot be used', function (): void {
+    $this->artisan('cfdi:autofile', ['--set-letter-income' => 'a/b'])
+        ->assertExitCode(1);
+
+    $this->assertDatabaseMissing('settings', ['key' => 'letter_income']);
+});
+
+it('uses the stored labels when no flag is passed', function (): void {
+    app(AppSettings::class)->setTypeLetters(new TypeLetters(income: 'E', expense: 'R'));
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $this->artisan('cfdi:autofile', [
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--no-interactive' => true,
+    ])->assertExitCode(0);
+
+    expect($this->out.'/2026-02-14 R SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile();
+});
+
+it('--letter-expense applies for this run without saving it', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $this->artisan('cfdi:autofile', [
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--letter-expense' => 'REC',
+        '--no-interactive' => true,
+    ])->assertExitCode(0);
+
+    expect($this->out.'/2026-02-14 REC SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile()
+        ->and(app(AppSettings::class)->typeLetters()->expense)->toBe('G');
+});
+
+it('rejects an unusable --letter-expense before processing anything', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+
+    $this->artisan('cfdi:autofile', [
+        '--dir' => $this->in,
+        '--output' => $this->out,
+        '--rfc' => 'BBBB010101BBB',
+        '--letter-expense' => 'Recibidas',
+        '--no-interactive' => true,
+    ])->assertExitCode(1);
+
+    expect($this->out)->not->toBeDirectory();
 });
 
 it('without --output it uses the Renamed folder', function (): void {

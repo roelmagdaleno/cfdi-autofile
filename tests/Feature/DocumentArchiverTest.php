@@ -3,6 +3,7 @@
 use App\Cfdi\CfdiProcessor;
 use App\Cfdi\Data\ProcessOptions;
 use App\Cfdi\Data\ProcessResult;
+use App\Cfdi\Naming\TypeLetters;
 use App\Models\Counterparty;
 use App\Models\Document;
 use App\Support\AppSettings;
@@ -28,13 +29,23 @@ afterEach(function (): void {
 /**
  * Processes a fixture and returns the result ready to be archived.
  */
-function processed(string $in, string $out, string $fixture = 'example_cfdi.xml', string $as = 'invoice01.xml'): ProcessResult
-{
+function processed(
+    string $in,
+    string $out,
+    string $fixture = 'example_cfdi.xml',
+    string $as = 'invoice01.xml',
+    ?TypeLetters $letters = null,
+): ProcessResult {
     copy(cfdiFixture($fixture), $in.'/'.$as);
 
     return app(CfdiProcessor::class)->process(
         [$in.'/'.$as],
-        new ProcessOptions('BBBB010101BBB', AppSettings::DEFAULT_TEMPLATE, $out),
+        new ProcessOptions(
+            'BBBB010101BBB',
+            AppSettings::DEFAULT_TEMPLATE,
+            $out,
+            letters: $letters ?? TypeLetters::defaults(),
+        ),
     );
 }
 
@@ -59,6 +70,23 @@ it('indexes the CFDI with the invoice data', function (): void {
         ->and($document->type_letter)->toBe('G')
         ->and($document->disk)->toBe(Document::DISK)
         ->and($document->counterparty->rfc)->toBe('AAA010101AAA');
+});
+
+// This is the whole point of keeping the enum's value as the identity: the row
+// stays queryable with `G`/`I` no matter what label the user writes on disk.
+it('indexes the canonical letter even when the labels are configured', function (): void {
+    $result = processed(
+        $this->in,
+        $this->out,
+        letters: new TypeLetters(income: 'E', expense: 'R'),
+    );
+
+    $this->archiver->archive($result, copyIntoArchive: true);
+
+    $document = Document::query()->sole();
+
+    expect($document->name)->toBe('2026-02-14 R CONTADOR - 11600.00.xml')
+        ->and($document->type_letter)->toBe('G');
 });
 
 it('copies nothing and points at the command path', function (): void {

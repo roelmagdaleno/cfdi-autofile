@@ -66,7 +66,7 @@
 
                 <div class="flex flex-wrap gap-1.5">
                     @foreach ($this->placeholders as $placeholder)
-                        <flux:tooltip :content="$placeholder->description()">
+                        <flux:tooltip :content="$placeholder->description($this->typeLetters)">
                             <flux:button
                                 type="button"
                                 size="xs"
@@ -89,13 +89,47 @@
             </div>
         </div>
 
+        {{--
+            The labels only change what `{type}` writes on disk: the archive
+            keeps storing I/G, so the filters in Documents keep working after a
+            change here.
+        --}}
+        <div class="grid gap-4 sm:grid-cols-2">
+            <flux:input
+                wire:model.live.debounce.400ms="letterIncome"
+                :label="__('ui.settings.letter_income_label')"
+                class="font-mono"
+                maxlength="{{ \App\Cfdi\Naming\TypeLetters::MAX_LENGTH }}"
+            />
+
+            <flux:input
+                wire:model.live.debounce.400ms="letterExpense"
+                :label="__('ui.settings.letter_expense_label')"
+                class="font-mono"
+                maxlength="{{ \App\Cfdi\Naming\TypeLetters::MAX_LENGTH }}"
+            />
+
+            <flux:text variant="subtle" class="text-xs sm:col-span-2">
+                {{ __('ui.settings.letters_description', [
+                    'token' => \App\Cfdi\Naming\Placeholder::Type->token(),
+                    'max' => \App\Cfdi\Naming\TypeLetters::MAX_LENGTH,
+                ]) }}
+            </flux:text>
+        </div>
+
         <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-white/5">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <flux:heading size="sm">{{ __('ui.settings.example') }}</flux:heading>
 
                 <flux:radio.group wire:model.live="previewType" variant="segmented" size="sm">
-                    <flux:radio value="G" :label="__('ui.settings.expense')" />
-                    <flux:radio value="I" :label="__('ui.settings.income')" />
+                    <flux:radio
+                        :value="\App\Cfdi\Data\TypeLetter::Expense->value"
+                        :label="__('ui.settings.expense', ['letter' => $this->typeLetters->expense])"
+                    />
+                    <flux:radio
+                        :value="\App\Cfdi\Data\TypeLetter::Income->value"
+                        :label="__('ui.settings.income', ['letter' => $this->typeLetters->income])"
+                    />
                 </flux:radio.group>
             </div>
 

@@ -15,7 +15,7 @@ final class TemplateExample
 {
     public const string COUNTERPARTY = 'SERVICIOS CONTABLES NORTE';
 
-    public static function name(string $template, TypeLetter $type): string
+    public static function name(string $template, TypeLetter $type, ?TypeLetters $letters = null): string
     {
         $data = new CfdiData(
             date: '2026-02-14T11:32:05',
@@ -30,6 +30,7 @@ final class TemplateExample
             self::COUNTERPARTY,
             $template,
             '.xml',
+            $letters,
         );
     }
 }

@@ -83,6 +83,7 @@ final class CfdiProcessor
                     $counterparty,
                     $options->template,
                     strtolower(PathExpander::suffix($file)),
+                    $options->letters,
                 );
 
                 $destination = $this->freeDestination($resolved, $name);

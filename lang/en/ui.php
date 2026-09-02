@@ -32,12 +32,15 @@ return [
         'rfc_label' => 'Your RFC',
         'rfc_description' => 'Used to tell whether you are the issuer (income) or the recipient (expense). Stored in uppercase.',
         'template_label' => 'Name template',
+        'letter_income_label' => 'Income label',
+        'letter_expense_label' => 'Expense label',
+        'letters_description' => 'What :token writes in the name. The default is I for income and G for expenses; use E and R, or anything else up to :max characters.',
         'add_piece' => 'Add a piece where your cursor is',
         'restore_default' => 'Restore the default',
         'unknown_placeholder' => 'A :token you type by hand that is not on the list is left as-is in the name.',
         'example' => 'Example',
-        'expense' => 'Expense (G)',
-        'income' => 'Income (I)',
+        'expense' => 'Expense (:letter)',
+        'income' => 'Income (:letter)',
         'saved' => 'Settings saved.',
     ],
 
@@ -71,8 +74,8 @@ return [
         'deleted' => 'Document removed from the archive.',
 
         'type' => [
-            'expense' => 'Expenses (G)',
-            'income' => 'Income (I)',
+            'expense' => 'Expenses (:letter)',
+            'income' => 'Income (:letter)',
             'unknown' => 'Undetermined (?)',
         ],
     ],
@@ -120,6 +123,12 @@ return [
             'required' => 'Enter a template.',
             'max' => 'The template is too long.',
             'placeholder' => 'The template must include at least one placeholder, for example :token.',
+        ],
+
+        'letter' => [
+            'required' => 'Enter a label for income and another one for expenses.',
+            'max' => 'The label must be at most :max characters long.',
+            'format' => 'The label cannot contain any of these characters: / \\ : * ? " < > |',
         ],
 
         'counterparty' => [

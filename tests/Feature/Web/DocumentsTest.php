@@ -1,7 +1,9 @@
 <?php
 
+use App\Cfdi\Naming\TypeLetters;
 use App\Livewire\BrowseDocuments;
 use App\Models\Document;
+use App\Support\AppSettings;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Livewire\Livewire;
@@ -72,6 +74,26 @@ it('filters by type', function (): void {
         ->set('typeLetter', 'I')
         ->assertSee('income.xml')
         ->assertDontSee('expense.xml');
+});
+
+// The archive stores the canonical `G`/`I`, so renaming the labels only
+// changes what is drawn: the filter keeps finding what was archived before.
+it('shows the configured label and keeps filtering by the canonical value', function (): void {
+    app(AppSettings::class)->setTypeLetters(new TypeLetters(income: 'E', expense: 'R'));
+
+    archivedDocument(['name' => 'expense.xml', 'type_letter' => 'G']);
+    archivedDocument(['name' => 'income.xml', 'type_letter' => 'I']);
+
+    $component = Livewire::test(BrowseDocuments::class)
+        ->assertSee('Expenses (R)')
+        ->assertSee('Income (E)')
+        ->set('typeLetter', 'G')
+        ->assertSee('expense.xml')
+        ->assertDontSee('income.xml');
+
+    expect($component->instance()->displayLetter('G'))->toBe('R')
+        ->and($component->instance()->displayLetter('I'))->toBe('E')
+        ->and($component->instance()->displayLetter(null))->toBe('?');
 });
 
 it('downloads the file with a signed link', function (): void {

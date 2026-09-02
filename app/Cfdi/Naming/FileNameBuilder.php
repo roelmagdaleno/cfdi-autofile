@@ -23,10 +23,15 @@ final class FileNameBuilder
         string $counterparty,
         string $template,
         string $extension,
+        ?TypeLetters $letters = null,
     ): string {
+        // The letters are configurable, so `{type}` renders whatever the user
+        // set (`E`/`R`, for instance) while `$type` keeps its canonical value.
+        $letters ??= TypeLetters::defaults();
+
         $values = [
             Placeholder::Date->value => self::formatDate($data->date),
-            Placeholder::Type->value => $type->value,
+            Placeholder::Type->value => $letters->for($type),
             Placeholder::Counterparty->value => $counterparty,
             Placeholder::Amount->value => $this->formatAmount($data->total),
             Placeholder::Uuid->value => $data->uuid ?? '',

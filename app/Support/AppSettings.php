@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Cfdi\Naming\TypeLetters;
 use App\Models\Setting;
 
 /**
@@ -17,6 +18,10 @@ final class AppSettings
     public const string KEY_RFC = 'rfc';
 
     public const string KEY_TEMPLATE = 'template';
+
+    public const string KEY_LETTER_INCOME = 'letter_income';
+
+    public const string KEY_LETTER_EXPENSE = 'letter_expense';
 
     public function rfc(): ?string
     {
@@ -41,6 +46,35 @@ final class AppSettings
     public function setTemplate(string $template): void
     {
         $this->put(self::KEY_TEMPLATE, $template);
+    }
+
+    /**
+     * The labels written into file names for income and expenses.
+     *
+     * A missing or blank row falls back to the default letter, so an install
+     * that never touched this keeps producing `I` and `G`.
+     */
+    public function typeLetters(): TypeLetters
+    {
+        $defaults = TypeLetters::defaults();
+
+        return new TypeLetters(
+            income: $this->nonEmpty(self::KEY_LETTER_INCOME) ?? $defaults->income,
+            expense: $this->nonEmpty(self::KEY_LETTER_EXPENSE) ?? $defaults->expense,
+        );
+    }
+
+    public function setTypeLetters(TypeLetters $letters): void
+    {
+        $this->put(self::KEY_LETTER_INCOME, trim($letters->income));
+        $this->put(self::KEY_LETTER_EXPENSE, trim($letters->expense));
+    }
+
+    private function nonEmpty(string $key): ?string
+    {
+        $value = trim((string) $this->get($key));
+
+        return $value === '' ? null : $value;
     }
 
     private function get(string $key): ?string

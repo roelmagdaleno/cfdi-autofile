@@ -4,6 +4,7 @@ use App\Cfdi\Data\CfdiData;
 use App\Cfdi\Data\TypeLetter;
 use App\Cfdi\Naming\FileNameBuilder;
 use App\Cfdi\Naming\NameSanitizer;
+use App\Cfdi\Naming\TypeLetters;
 use App\Support\AppSettings;
 use Illuminate\Support\Facades\App;
 
@@ -61,6 +62,49 @@ it('leaves an unknown placeholder literal', function (): void {
     $name = $this->builder->build($data, TypeLetter::Income, 'X', '{date} {folio}', '.xml');
 
     expect($name)->toBe('2026-02-14 {folio}.xml');
+});
+
+// `{type}` renders the configured label, not the enum's backing value: somebody
+// who thinks in "emitido / recibido" gets `E` and `R` on disk.
+it('writes the configured labels', function (): void {
+    $data = new CfdiData(date: '2026-02-14T11:32:05', total: '11600.00', invoiceType: 'I');
+    $letters = new TypeLetters(income: 'E', expense: 'R');
+
+    expect($this->builder->build($data, TypeLetter::Expense, 'Contador', AppSettings::DEFAULT_TEMPLATE, '.pdf', $letters))
+        ->toBe('2026-02-14 R Contador - 11600.00.pdf')
+        ->and($this->builder->build($data, TypeLetter::Income, 'Cliente', AppSettings::DEFAULT_TEMPLATE, '.pdf', $letters))
+        ->toBe('2026-02-14 E Cliente - 11600.00.pdf');
+});
+
+it('writes a label longer than one character', function (): void {
+    $data = new CfdiData(date: '2026-02-14T11:32:05', total: '11600.00', invoiceType: 'I');
+
+    $name = $this->builder->build(
+        $data,
+        TypeLetter::Expense,
+        'Contador',
+        AppSettings::DEFAULT_TEMPLATE,
+        '.xml',
+        new TypeLetters(income: 'EMI', expense: 'REC'),
+    );
+
+    expect($name)->toBe('2026-02-14 REC Contador - 11600.00.xml');
+});
+
+// Configuring the labels does not give `Unknown` one: it is an error case.
+it('turns the unknown type letter into a dash even with labels configured', function (): void {
+    $data = new CfdiData(date: '2026-02-14T11:32:05', total: '100.00');
+
+    $name = $this->builder->build(
+        $data,
+        TypeLetter::Unknown,
+        'Proveedor',
+        AppSettings::DEFAULT_TEMPLATE,
+        '.xml',
+        new TypeLetters(income: 'E', expense: 'R'),
+    );
+
+    expect($name)->toBe('2026-02-14 - Proveedor - 100.00.xml');
 });
 
 it('turns the unknown type letter into a dash', function (): void {

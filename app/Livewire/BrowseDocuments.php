@@ -3,8 +3,10 @@
 namespace App\Livewire;
 
 use App\Cfdi\Data\TypeLetter;
+use App\Cfdi\Naming\TypeLetters;
 use App\Models\Counterparty;
 use App\Models\Document;
+use App\Support\AppSettings;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Contracts\View\View;
@@ -16,6 +18,12 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+/**
+ * @property-read LengthAwarePaginator<int, Document> $documents
+ * @property-read Collection<int, Counterparty> $counterparties
+ * @property-read array<string, string> $typeLabels
+ * @property-read TypeLetters $typeLetters
+ */
 final class BrowseDocuments extends Component
 {
     use WithPagination;
@@ -129,16 +137,42 @@ final class BrowseDocuments extends Component
     }
 
     /**
+     * The filter options, keyed by the canonical value stored in
+     * `documents.type_letter`.
+     *
+     * The key is what the query compares against and never changes; only the
+     * label follows the configured letters, so renaming them does not hide the
+     * documents archived before the change.
+     *
      * @return array<string, string>
      */
     #[Computed]
     public function typeLabels(): array
     {
         return [
-            TypeLetter::Expense->value => (string) __('ui.documents.type.expense'),
-            TypeLetter::Income->value => (string) __('ui.documents.type.income'),
+            TypeLetter::Expense->value => (string) __('ui.documents.type.expense', ['letter' => $this->typeLetters->expense]),
+            TypeLetter::Income->value => (string) __('ui.documents.type.income', ['letter' => $this->typeLetters->income]),
             TypeLetter::Unknown->value => (string) __('ui.documents.type.unknown'),
         ];
+    }
+
+    #[Computed]
+    public function typeLetters(): TypeLetters
+    {
+        return app(AppSettings::class)->typeLetters();
+    }
+
+    /**
+     * The letter drawn on a row's badge.
+     *
+     * A row stores the canonical value, so an unrecognized one (or `null`) is
+     * treated as undetermined.
+     */
+    public function displayLetter(?string $canonical): string
+    {
+        return $this->typeLetters->for(
+            TypeLetter::tryFrom((string) $canonical) ?? TypeLetter::Unknown,
+        );
     }
 
     public function downloadUrl(Document $document): ?string

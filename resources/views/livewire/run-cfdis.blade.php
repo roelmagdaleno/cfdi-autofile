@@ -172,7 +172,7 @@
                 <div class="mt-2.5 flex flex-wrap items-center gap-x-0.2 gap-y-1.5 font-mono text-sm">
                     @foreach ($this->templateSegments as $segment)
                         @if ($segment['placeholder'] !== null)
-                            <flux:tooltip :content="$segment['placeholder']->description()">
+                            <flux:tooltip :content="$segment['placeholder']->description($this->typeLetters)">
                                 <span
                                     tabindex="0"
                                     class="rounded-md bg-zinc-200 px-1.5 py-0.5 text-xs text-zinc-800 ring-1 ring-zinc-950/[0.08] dark:bg-white/15 dark:text-zinc-100 dark:ring-white/10"

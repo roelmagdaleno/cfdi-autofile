@@ -119,3 +119,46 @@ it('shows the example as income when the type changes', function (): void {
         ->set('previewType', 'I')
         ->assertSee('I 2026-02-14.xml');
 });
+
+it('stores the type labels trimmed', function (): void {
+    Livewire::test(EditSettings::class)
+        ->set('rfc', 'BBBB010101BBB')
+        ->set('template', AppSettings::DEFAULT_TEMPLATE)
+        ->set('letterIncome', ' E ')
+        ->set('letterExpense', 'R')
+        ->call('save')
+        ->assertHasNoErrors()
+        ->assertSet('letterIncome', 'E');
+
+    $letters = app(AppSettings::class)->typeLetters();
+
+    expect($letters->income)->toBe('E')
+        ->and($letters->expense)->toBe('R');
+});
+
+// The example reads the labels straight off the form, so it reacts before the
+// settings are saved.
+it('shows the example with the labels being typed', function (): void {
+    Livewire::test(EditSettings::class)
+        ->set('template', '{type} {date}')
+        ->set('previewType', 'I')
+        ->set('letterIncome', 'EMI')
+        ->assertSee('EMI 2026-02-14.xml');
+});
+
+it('rejects a type label that cannot be used', function (string $letter): void {
+    Livewire::test(EditSettings::class)
+        ->set('rfc', 'BBBB010101BBB')
+        ->set('template', AppSettings::DEFAULT_TEMPLATE)
+        ->set('letterExpense', $letter)
+        ->call('save')
+        ->assertHasErrors('letterExpense');
+
+    $this->assertDatabaseMissing('settings', ['key' => 'letter_expense']);
+})->with([
+    'empty' => [''],
+    'blank' => ['   '],
+    'too long' => ['Recibidas'],
+    'a slash' => ['a/b'],
+    'a question mark' => ['a?b'],
+]);

@@ -13,6 +13,7 @@ use App\Cfdi\Naming\NameSanitizer;
 use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TemplateExample;
+use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
 use App\Models\Counterparty;
 use App\Models\Document;
@@ -41,6 +42,7 @@ use Livewire\WithFileUploads;
  * @property-read string $template
  * @property-read list<array{placeholder: Placeholder|null, text: string}> $templateSegments
  * @property-read string $templateExample
+ * @property-read TypeLetters $typeLetters
  * @property-read string|null $downloadUrl
  * @property-read Collection<int, RunFile> $allRows
  */
@@ -294,11 +296,17 @@ final class RunCfdis extends Component
         return Placeholder::segments($this->template);
     }
 
-    /** Example name, always as an expense: the G/I selector lives in Settings. */
+    #[Computed]
+    public function typeLetters(): TypeLetters
+    {
+        return app(AppSettings::class)->typeLetters();
+    }
+
+    /** Example name, always as an expense: the income/expense selector lives in Settings. */
     #[Computed]
     public function templateExample(): string
     {
-        return TemplateExample::name($this->template, TypeLetter::Expense);
+        return TemplateExample::name($this->template, TypeLetter::Expense, $this->typeLetters);
     }
 
     #[Computed]
@@ -400,6 +408,7 @@ final class RunCfdis extends Component
                 template: $settings->template(),
                 outputDirectory: $storage->outputPath($this->runId),
                 move: false, // The web always copies: the originals are temporary uploads.
+                letters: $settings->typeLetters(),
             ),
             new SuggestedNamePrompt,
         );

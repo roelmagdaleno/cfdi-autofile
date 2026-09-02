@@ -43,7 +43,7 @@ return [
 
     'placeholder' => [
         'date' => 'Fecha de emision en formato YYYY-MM-DD.',
-        'type' => 'I si eres el emisor, G si eres el receptor.',
+        'type' => ':income si eres el emisor, :expense si eres el receptor.',
         'counterparty' => 'Nombre corto de la otra parte.',
         'amount' => 'Total con dos decimales.',
         'uuid' => 'Folio fiscal del timbre.',

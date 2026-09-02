@@ -32,12 +32,15 @@ return [
         'rfc_label' => 'Tu RFC',
         'rfc_description' => 'Se usa para saber si eres el emisor (ingreso) o el receptor (gasto). Se guarda en mayúsculas.',
         'template_label' => 'Plantilla del nombre',
+        'letter_income_label' => 'Etiqueta de ingreso',
+        'letter_expense_label' => 'Etiqueta de gasto',
+        'letters_description' => 'Lo que :token escribe en el nombre. Por defecto es I para ingresos y G para gastos; o lo que quieras hasta :max caracteres.',
         'add_piece' => 'Agregar una pieza donde tengas el cursor',
         'restore_default' => 'Restaurar la predeterminada',
         'unknown_placeholder' => 'Un :token que escribas a mano y no esté en la lista se deja tal cual en el nombre.',
         'example' => 'Ejemplo',
-        'expense' => 'Gasto (G)',
-        'income' => 'Ingreso (I)',
+        'expense' => 'Gasto (:letter)',
+        'income' => 'Ingreso (:letter)',
         'saved' => 'Ajustes guardados.',
     ],
 
@@ -71,8 +74,8 @@ return [
         'deleted' => 'Documento eliminado del archivo.',
 
         'type' => [
-            'expense' => 'Gastos (G)',
-            'income' => 'Ingresos (I)',
+            'expense' => 'Gastos (:letter)',
+            'income' => 'Ingresos (:letter)',
             'unknown' => 'Sin determinar (?)',
         ],
     ],
@@ -120,6 +123,12 @@ return [
             'required' => 'Escribe una plantilla.',
             'max' => 'La plantilla es demasiado larga.',
             'placeholder' => 'La plantilla debe incluir al menos un placeholder, por ejemplo :token.',
+        ],
+
+        'letter' => [
+            'required' => 'Escribe una etiqueta para ingresos y otra para gastos.',
+            'max' => 'La etiqueta debe tener máximo :max caracteres.',
+            'format' => 'La etiqueta no puede llevar ninguno de estos caracteres: / \\ : * ? " < > |',
         ],
 
         'counterparty' => [

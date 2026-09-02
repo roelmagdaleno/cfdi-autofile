@@ -69,8 +69,8 @@
                         <flux:table.cell>{{ $document->counterparty?->name ?? '—' }}</flux:table.cell>
 
                         <flux:table.cell>
-                            <flux:badge size="sm" :color="$document->type_letter === 'I' ? 'green' : 'zinc'">
-                                {{ $document->type_letter ?? '?' }}
+                            <flux:badge size="sm" :color="$document->type_letter === \App\Cfdi\Data\TypeLetter::Income->value ? 'green' : 'zinc'">
+                                {{ $this->displayLetter($document->type_letter) }}
                             </flux:badge>
                         </flux:table.cell>
 

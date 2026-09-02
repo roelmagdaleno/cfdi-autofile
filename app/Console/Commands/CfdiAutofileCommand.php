@@ -8,6 +8,7 @@ use App\Cfdi\Data\ProcessOptions;
 use App\Cfdi\FileCollector;
 use App\Cfdi\Naming\CounterpartyNamePrompt;
 use App\Cfdi\Naming\SuggestedNamePrompt;
+use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
 use App\Console\Prompts\ConsoleNamePrompt;
 use App\Support\AppSettings;
@@ -36,8 +37,12 @@ final class CfdiAutofileCommand extends Command
             {--no-interactive : '.__('console.autofile.option.no_interactive').'}
             {--rfc= : '.__('console.autofile.option.rfc').'}
             {--template= : '.__('console.autofile.option.template').'}
+            {--letter-income= : '.__('console.autofile.option.letter_income').'}
+            {--letter-expense= : '.__('console.autofile.option.letter_expense').'}
             {--set-rfc= : '.__('console.autofile.option.set_rfc').'}
-            {--set-template= : '.__('console.autofile.option.set_template').'}';
+            {--set-template= : '.__('console.autofile.option.set_template').'}
+            {--set-letter-income= : '.__('console.autofile.option.set_letter_income').'}
+            {--set-letter-expense= : '.__('console.autofile.option.set_letter_expense').'}';
 
         $this->description = (string) __('console.autofile.description');
 
@@ -68,6 +73,13 @@ final class CfdiAutofileCommand extends Command
             return self::SUCCESS;
         }
 
+        $setIncome = $this->stringOption('set-letter-income');
+        $setExpense = $this->stringOption('set-letter-expense');
+
+        if (($setIncome ?? '') !== '' || ($setExpense ?? '') !== '') {
+            return $this->saveLetters($settings, $setIncome, $setExpense);
+        }
+
         /** @var list<string> $files */
         $files = $this->argument('files');
         $directory = $this->stringOption('dir');
@@ -88,6 +100,16 @@ final class CfdiAutofileCommand extends Command
 
         $template = $this->stringOption('template') ?: $settings->template();
         $output = $this->stringOption('output') ?: (string) __('cfdi.default_output_directory');
+
+        $letters = $this->overlayLetters(
+            $settings->typeLetters(),
+            $this->stringOption('letter-income'),
+            $this->stringOption('letter-expense'),
+        );
+
+        if (! $letters instanceof TypeLetters) {
+            return self::FAILURE;
+        }
 
         $collected = $collector->collect($files, $directory);
 
@@ -110,7 +132,7 @@ final class CfdiAutofileCommand extends Command
 
         $result = $processor->process(
             $collected->paths,
-            new ProcessOptions($myRfc, $template, $output, (bool) $this->option('move')),
+            new ProcessOptions($myRfc, $template, $output, (bool) $this->option('move'), $letters),
             $this->prompt($interactive),
         );
 
@@ -141,6 +163,53 @@ final class CfdiAutofileCommand extends Command
         ]));
 
         return $result->allOk() ? self::SUCCESS : 2;
+    }
+
+    private function saveLetters(AppSettings $settings, ?string $income, ?string $expense): int
+    {
+        $letters = $this->overlayLetters($settings->typeLetters(), $income, $expense);
+
+        if (! $letters instanceof TypeLetters) {
+            return self::FAILURE;
+        }
+
+        $settings->setTypeLetters($letters);
+
+        $saved = $settings->typeLetters();
+
+        $this->line((string) __('console.autofile.letters_saved', [
+            'income' => $saved->income,
+            'expense' => $saved->expense,
+        ]));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * The saved pair with the flags of this invocation applied on top.
+     *
+     * A flag that was not passed leaves the saved label alone, so overriding one
+     * side does not silently reset the other. `null` means "the error has
+     * already been printed, exit with 1".
+     */
+    private function overlayLetters(TypeLetters $saved, ?string $income, ?string $expense): ?TypeLetters
+    {
+        foreach ([$income, $expense] as $letter) {
+            if (($letter ?? '') === '') {
+                continue;
+            }
+
+            if (! TypeLetters::isValid((string) $letter)) {
+                $this->writeError((string) __('console.autofile.invalid_letter', ['max' => TypeLetters::MAX_LENGTH]));
+
+                return null;
+            }
+        }
+
+        return new TypeLetters(
+            income: ($income ?? '') === '' ? $saved->income : trim((string) $income),
+            expense: ($expense ?? '') === '' ? $saved->expense : trim((string) $expense),
+        );
     }
 
     /**

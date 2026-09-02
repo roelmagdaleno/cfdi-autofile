@@ -41,7 +41,7 @@ return [
 
     'placeholder' => [
         'date' => 'Issue date in YYYY-MM-DD format.',
-        'type' => 'I if you are the issuer, G if you are the recipient.',
+        'type' => ':income if you are the issuer, :expense if you are the recipient.',
         'counterparty' => 'Short name of the other party.',
         'amount' => 'Total with two decimals.',
         'uuid' => 'Tax folio of the stamp.',

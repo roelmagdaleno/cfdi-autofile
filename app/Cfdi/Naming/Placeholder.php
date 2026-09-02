@@ -35,9 +35,21 @@ enum Placeholder: string
         return (string) __("cfdi.placeholder_label.{$this->value}");
     }
 
-    public function description(): string
+    /**
+     * The tooltip text drawn next to each pill.
+     *
+     * `{type}` is the only description that depends on configuration: it spells
+     * out the two labels, so it takes the pair to describe. The replacements are
+     * passed for every case because the other lines simply ignore them.
+     */
+    public function description(?TypeLetters $letters = null): string
     {
-        return (string) __("cfdi.placeholder.{$this->value}");
+        $letters ??= TypeLetters::defaults();
+
+        return (string) __("cfdi.placeholder.{$this->value}", [
+            'income' => $letters->income,
+            'expense' => $letters->expense,
+        ]);
     }
 
     /**
