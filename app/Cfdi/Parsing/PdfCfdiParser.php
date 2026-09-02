@@ -83,13 +83,7 @@ final class PdfCfdiParser
         $total = str_replace(',', '', $totals[count($totals) - 1][1]);
 
         // 5. Date: ISO first, then dd/mm/yyyy.
-        $date = null;
-
-        if (preg_match(self::DATE_ISO_PATTERN, $text, $iso) === 1) {
-            $date = $iso[1];
-        } elseif (preg_match(self::DATE_DMY_PATTERN, $text, $dmy) === 1) {
-            $date = "{$dmy[3]}-{$dmy[2]}-{$dmy[1]}";
-        }
+        $date = $this->extractDate($text);
 
         if ($date === null) {
             throw new CfdiRejectedException((string) __('cfdi.rejected.pdf_no_date'));
@@ -106,6 +100,22 @@ final class PdfCfdiParser
             source: SourceFormat::Pdf,
             warnings: [self::heuristicWarning()],
         );
+    }
+
+    /**
+     * The first date found, as `yyyy-mm-dd`. ISO wins over dd/mm/yyyy.
+     */
+    private function extractDate(string $text): ?string
+    {
+        if (preg_match(self::DATE_ISO_PATTERN, $text, $iso) === 1) {
+            return $iso[1];
+        }
+
+        if (preg_match(self::DATE_DMY_PATTERN, $text, $dmy) === 1) {
+            return "{$dmy[3]}-{$dmy[2]}-{$dmy[1]}";
+        }
+
+        return null;
     }
 
     /**

@@ -53,24 +53,14 @@ final class FileCollector
 
         if ($directory !== null && $directory !== '') {
             $base = PathExpander::expand($directory);
+            $isDirectory = is_dir($base);
 
-            if (! is_dir($base)) {
+            if (! $isDirectory) {
                 $errors[] = new CollectionError("--dir {$directory}", (string) __('cfdi.collection.not_a_directory'));
-            } else {
-                $entries = scandir($base) ?: [];
-                sort($entries, SORT_STRING);
+            }
 
-                foreach ($entries as $entry) {
-                    if ($entry === '.' || $entry === '..') {
-                        continue;
-                    }
-
-                    $child = rtrim($base, '/').'/'.$entry;
-
-                    if (is_file($child) && in_array(strtolower(PathExpander::suffix($child)), self::EXTENSIONS, true)) {
-                        $paths[] = $child;
-                    }
-                }
+            if ($isDirectory) {
+                $paths = [...$paths, ...$this->processableFilesIn($base)];
             }
         }
 
@@ -90,5 +80,40 @@ final class FileCollector
         }
 
         return new CollectedFiles($unique, $errors);
+    }
+
+    /**
+     * The direct children of $base with a supported extension, sorted by name
+     * so the processing order does not depend on the filesystem.
+     *
+     * @return list<string>
+     */
+    private function processableFilesIn(string $base): array
+    {
+        $entries = scandir($base) ?: [];
+        sort($entries, SORT_STRING);
+
+        /** @var list<string> $files */
+        $files = [];
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $child = rtrim($base, '/').'/'.$entry;
+
+            if (! is_file($child)) {
+                continue;
+            }
+
+            if (! in_array(strtolower(PathExpander::suffix($child)), self::EXTENSIONS, true)) {
+                continue;
+            }
+
+            $files[] = $child;
+        }
+
+        return $files;
     }
 }

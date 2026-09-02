@@ -34,11 +34,11 @@ final class FileGrouper
 
             $slot = ltrim(strtolower(PathExpander::suffix($path)), '.');
 
-            if ($slot === 'xml') {
-                $groups[$key]->xml = $path;
-            } elseif ($slot === 'pdf') {
-                $groups[$key]->pdf = $path;
-            }
+            match ($slot) {
+                'xml' => $groups[$key]->xml = $path,
+                'pdf' => $groups[$key]->pdf = $path,
+                default => null,
+            };
         }
 
         return array_map(fn (string $key): FileGroup => $groups[$key], $order);
