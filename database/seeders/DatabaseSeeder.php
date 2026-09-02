@@ -11,6 +11,6 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Nada que sembrar: los ajustes y las contrapartes se crean al usar la app.
+        // Nothing to seed: settings and counterparties are created by using the app.
     }
 }

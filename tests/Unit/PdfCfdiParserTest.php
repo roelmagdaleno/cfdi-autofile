@@ -9,9 +9,12 @@ use Tests\Support\FakePdfTextExtractor;
 use Tests\Support\ThrowingPdfTextExtractor;
 
 /**
- * Texto base de un CFDI valido, igual al del proyecto de Python.
+ * Base text of a valid CFDI, identical to the Python project's.
+ *
+ * The contents stay in Spanish: it stands in for a real invoice issued in
+ * Mexico, and the parser's heuristics match against that wording.
  */
-function pdfCfdiValido(): string
+function validPdfCfdi(): string
 {
     return implode("\n", [
         'FACTURA ELECTRONICA CFDI 4.0',
@@ -28,11 +31,11 @@ function pdfCfdiValido(): string
 
 function parsePdfText(string $text): CfdiData
 {
-    return (new PdfCfdiParser(new FakePdfTextExtractor($text)))->parse('/no/importa.pdf');
+    return (new PdfCfdiParser(new FakePdfTextExtractor($text)))->parse('/does/not/matter.pdf');
 }
 
-it('acepta con confianza baja', function (): void {
-    $data = parsePdfText(pdfCfdiValido());
+it('accepts with low confidence', function (): void {
+    $data = parsePdfText(validPdfCfdi());
 
     expect($data->confidence)->toBe(Confidence::Low)
         ->and($data->source)->toBe(SourceFormat::Pdf)
@@ -46,20 +49,20 @@ it('acepta con confianza baja', function (): void {
         ->toEqualCanonicalizing(['AAA010101AAA', 'BBBB010101BBB']);
 });
 
-it('no confunde el Subtotal con el Total', function (): void {
-    expect(parsePdfText(pdfCfdiValido())->total)->toBe('2900.00');
+it('does not confuse the Subtotal with the Total', function (): void {
+    expect(parsePdfText(validPdfCfdi())->total)->toBe('2900.00');
 });
 
-it('rechaza sin texto extraible', function (string $text): void {
+it('rejects without extractable text', function (string $text): void {
     expect(fn () => parsePdfText($text))
-        ->toThrow(CfdiRejectedException::class, 'no tiene texto extraible');
+        ->toThrow(CfdiRejectedException::class, 'no extractable text');
 })->with([
-    'vacio' => [''],
-    'solo espacios' => ["  \n\t "],
-    'solo espacio duro' => ["\u{00A0}\u{00A0}"],
+    'empty' => [''],
+    'only spaces' => ["  \n\t "],
+    'only a non-breaking space' => ["\u{00A0}\u{00A0}"],
 ]);
 
-it('rechaza con menos de dos RFCs', function (): void {
+it('rejects with fewer than two RFCs', function (): void {
     $text = implode("\n", [
         'FACTURA',
         'RFC Emisor: AAA010101AAA',
@@ -68,10 +71,10 @@ it('rechaza con menos de dos RFCs', function (): void {
     ]);
 
     expect(fn () => parsePdfText($text))
-        ->toThrow(CfdiRejectedException::class, 'al menos 2');
+        ->toThrow(CfdiRejectedException::class, 'at least 2');
 });
 
-it('rechaza sin UUID ni folio fiscal', function (): void {
+it('rejects without a UUID or a folio fiscal', function (): void {
     $text = implode("\n", [
         'RECIBO SIMPLE',
         'RFC Emisor: AAA010101AAA',
@@ -81,10 +84,10 @@ it('rechaza sin UUID ni folio fiscal', function (): void {
     ]);
 
     expect(fn () => parsePdfText($text))
-        ->toThrow(CfdiRejectedException::class, 'no parece estar timbrado');
+        ->toThrow(CfdiRejectedException::class, 'does not look stamped');
 });
 
-it('rechaza sin total', function (): void {
+it('rejects without a total', function (): void {
     $text = implode("\n", [
         'FACTURA',
         'RFC Emisor: AAA010101AAA',
@@ -94,10 +97,10 @@ it('rechaza sin total', function (): void {
     ]);
 
     expect(fn () => parsePdfText($text))
-        ->toThrow(CfdiRejectedException::class, 'no se pudo identificar un total');
+        ->toThrow(CfdiRejectedException::class, 'could not identify a total');
 });
 
-it('rechaza sin fecha', function (): void {
+it('rejects without a date', function (): void {
     $text = implode("\n", [
         'FACTURA',
         'RFC Emisor: AAA010101AAA',
@@ -107,10 +110,10 @@ it('rechaza sin fecha', function (): void {
     ]);
 
     expect(fn () => parsePdfText($text))
-        ->toThrow(CfdiRejectedException::class, 'no se pudo identificar la fecha de emision');
+        ->toThrow(CfdiRejectedException::class, 'could not identify the issue date');
 });
 
-it('acepta la frase "Folio fiscal" sin UUID', function (): void {
+it('accepts the phrase "Folio fiscal" without a UUID', function (): void {
     $text = implode("\n", [
         'FACTURA',
         'RFC Emisor: AAA010101AAA',
@@ -126,21 +129,21 @@ it('acepta la frase "Folio fiscal" sin UUID', function (): void {
         ->and($data->total)->toBe('150.00');
 });
 
-it('reconoce un RFC que empieza con Ñ', function (): void {
-    $text = str_replace('AAA010101AAA', 'ÑAA010101AAA', pdfCfdiValido());
+it('recognizes an RFC starting with Ñ', function (): void {
+    $text = str_replace('AAA010101AAA', 'ÑAA010101AAA', validPdfCfdi());
 
     expect(parsePdfText($text)->issuerRfc)->toBe('ÑAA010101AAA');
 });
 
-it('convierte una fecha dd/mm/yyyy', function (): void {
-    $text = str_replace('2026-04-05T10:15:00', '05/04/2026', pdfCfdiValido());
+it('converts a dd/mm/yyyy date', function (): void {
+    $text = str_replace('2026-04-05T10:15:00', '05/04/2026', validPdfCfdi());
 
     expect(parsePdfText($text)->date)->toBe('2026-04-05');
 });
 
-it('rechaza cuando la libreria de PDF revienta', function (): void {
-    $parser = new PdfCfdiParser(new ThrowingPdfTextExtractor('archivo corrupto'));
+it('rejects when the PDF library blows up', function (): void {
+    $parser = new PdfCfdiParser(new ThrowingPdfTextExtractor('corrupt file'));
 
-    expect(fn () => $parser->parse('/no/importa.pdf'))
-        ->toThrow(CfdiRejectedException::class, 'No se pudo abrir el PDF: archivo corrupto');
+    expect(fn () => $parser->parse('/does/not/matter.pdf'))
+        ->toThrow(CfdiRejectedException::class, 'Could not open the PDF: corrupt file');
 });

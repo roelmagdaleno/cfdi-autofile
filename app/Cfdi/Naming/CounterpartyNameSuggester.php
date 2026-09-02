@@ -5,10 +5,13 @@ namespace App\Cfdi\Naming;
 final class CounterpartyNameSuggester
 {
     /**
-     * Formas societarias y conectores que se quitan de la sugerencia automatica.
+     * Legal forms and connectors stripped from the automatic suggestion.
      *
-     * `S.A.` y `S.A` nunca pueden hacer match, porque la llave de busqueda es la
-     * palabra sin puntos. Se conservan por paridad con el original.
+     * These stay in Spanish on purpose: they match the Mexican legal-entity
+     * names that come in the CFDI's `Emisor@Nombre` attribute.
+     *
+     * `S.A.` and `S.A` can never match, because the lookup key is the word with
+     * its dots removed. They are kept for parity with the original.
      *
      * @var array<string, true>
      */
@@ -23,7 +26,7 @@ final class CounterpartyNameSuggester
         'PROMOTORA' => true, 'INVERSION' => true, 'RESPONSABILIDAD' => true,
         'LIMITADA' => true, 'CIVIL' => true, 'LTD' => true, 'LLC' => true,
         'INC' => true, 'CORP' => true,
-        // Conectores que no aportan al nombre corto.
+        // Connectors that add nothing to the short name.
         'DEL' => true, 'LA' => true, 'LAS' => true, 'LOS' => true,
         'EL' => true, 'Y' => true, 'E' => true,
     ];
@@ -31,7 +34,7 @@ final class CounterpartyNameSuggester
     public function __construct(private readonly NameSanitizer $sanitizer) {}
 
     /**
-     * Razon social sin forma societaria, maximo 3 palabras, sin acentos.
+     * Legal name without its legal form, at most 3 words, without accents.
      */
     public function suggest(?string $legalName): string
     {

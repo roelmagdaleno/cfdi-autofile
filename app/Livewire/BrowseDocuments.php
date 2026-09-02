@@ -7,30 +7,40 @@ use App\Models\Counterparty;
 use App\Models\Document;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL as UrlGenerator;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-#[Title('Documentos')]
 final class BrowseDocuments extends Component
 {
     use WithPagination;
 
+    public const string MODAL_DELETE = 'delete-document';
+
     #[Url(except: '')]
     public string $search = '';
 
-    #[Url(as: 'contraparte', except: '')]
+    #[Url(as: 'counterparty', except: '')]
     public string $counterpartyId = '';
 
-    #[Url(as: 'tipo', except: '')]
+    #[Url(as: 'type', except: '')]
     public string $typeLetter = '';
 
     public ?int $deletingId = null;
+
+    /**
+     * The page title is set here rather than with `#[Title]`: attribute
+     * arguments must be constant, and this one is translated.
+     */
+    public function render(): View
+    {
+        return view('livewire.browse-documents')->title(__('ui.documents.title'));
+    }
 
     public function updatedSearch(): void
     {
@@ -51,15 +61,15 @@ final class BrowseDocuments extends Component
     {
         $this->deletingId = $id;
 
-        Flux::modal('borrar-documento')->show();
+        Flux::modal(self::MODAL_DELETE)->show();
     }
 
     /**
-     * Saca el documento del archivo.
+     * Removes the document from the archive.
      *
-     * El archivo en disco solo se borra cuando es una copia nuestra. Los del
-     * comando viven en la carpeta del usuario y no se tocan: la app nada mas
-     * deja de indexarlos.
+     * The file on disk is only deleted when it is a copy of ours. The ones from
+     * the command live in the user's folder and are left untouched: the app
+     * simply stops indexing them.
      */
     public function delete(): void
     {
@@ -75,8 +85,8 @@ final class BrowseDocuments extends Component
 
         $this->deletingId = null;
 
-        Flux::modal('borrar-documento')->close();
-        Flux::toast(text: 'Documento eliminado del archivo.');
+        Flux::modal(self::MODAL_DELETE)->close();
+        Flux::toast(text: __('ui.documents.deleted'));
     }
 
     /**
@@ -104,8 +114,8 @@ final class BrowseDocuments extends Component
     }
 
     /**
-     * Solo las contrapartes que de verdad tienen documentos: un selector con
-     * opciones que no filtran nada no le sirve a nadie.
+     * Only the counterparties that actually have documents: a selector with
+     * options that filter nothing is useless.
      *
      * @return Collection<int, Counterparty>
      */
@@ -125,9 +135,9 @@ final class BrowseDocuments extends Component
     public function typeLabels(): array
     {
         return [
-            TypeLetter::Expense->value => 'Gastos (G)',
-            TypeLetter::Income->value => 'Ingresos (I)',
-            TypeLetter::Unknown->value => 'Sin determinar (?)',
+            TypeLetter::Expense->value => (string) __('ui.documents.type.expense'),
+            TypeLetter::Income->value => (string) __('ui.documents.type.income'),
+            TypeLetter::Unknown->value => (string) __('ui.documents.type.unknown'),
         ];
     }
 

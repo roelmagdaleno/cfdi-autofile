@@ -17,8 +17,8 @@ return new class extends Migration
             $table->json('warnings');
             $table->json('new_counterparties');
 
-            // Marca el paso de `cfdi:clean`: los directorios de la corrida ya se
-            // vaciaron, pero la fila se queda como historial.
+            // Marks that `cfdi:clean` has been through: the run's directories were
+            // emptied, but the row stays as history.
             $table->timestamp('files_purged_at')->nullable();
             $table->timestamps();
         });

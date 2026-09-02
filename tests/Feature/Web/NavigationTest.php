@@ -5,29 +5,29 @@ use App\Support\AppSettings;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
-it('las cuatro pantallas responden', function (string $path, string $text): void {
+it('all four screens respond', function (string $path, string $text): void {
     app(AppSettings::class)->setRfc('BBBB010101BBB');
 
     $this->get($path)->assertOk()->assertSee($text);
 })->with([
-    'procesar' => ['/', 'Procesar CFDIs'],
-    'documentos' => ['/documentos', 'Documentos'],
-    'ajustes' => ['/ajustes', 'Ajustes'],
-    'contrapartes' => ['/contrapartes', 'Contrapartes'],
+    'process' => ['/', 'Process CFDIs'],
+    'documents' => ['/documents', 'Documents'],
+    'settings' => ['/settings', 'Settings'],
+    'counterparties' => ['/counterparties', 'Counterparties'],
 ]);
 
-it('la navegacion muestra las cuatro pantallas', function (): void {
+it('the navigation shows all four screens', function (): void {
     $this->get('/')
         ->assertOk()
-        ->assertSee('Procesar')
-        ->assertSee('Documentos')
-        ->assertSee('Contrapartes')
-        ->assertSee('Ajustes');
+        ->assertSee('Process')
+        ->assertSee('Documents')
+        ->assertSee('Counterparties')
+        ->assertSee('Settings');
 });
 
-// Este test es el que evita que el stack de autenticacion regrese sin que nadie
-// se de cuenta.
-it('no queda ninguna ruta de autenticacion', function (string $name): void {
+// This test is what keeps the authentication stack from coming back without
+// anyone noticing.
+it('no authentication route is left', function (string $name): void {
     expect(Route::has($name))->toBeFalse();
 })->with([
     'login', 'register', 'logout', 'dashboard', 'profile.edit',
@@ -36,11 +36,11 @@ it('no queda ninguna ruta de autenticacion', function (string $name): void {
     'well-known.passkeys',
 ]);
 
-it('las URLs del starter kit ya no existen', function (string $path): void {
+it('the starter kit URLs no longer exist', function (string $path): void {
     $this->get($path)->assertNotFound();
 })->with(['/login', '/register', '/dashboard', '/settings/profile', '/settings/appearance']);
 
-it('no hay modelo de usuarios ni tabla users', function (): void {
+it('there is no user model and no users table', function (): void {
     expect(class_exists(User::class))->toBeFalse()
         ->and(Schema::hasTable('users'))->toBeFalse()
         ->and(Schema::hasTable('sessions'))->toBeFalse();

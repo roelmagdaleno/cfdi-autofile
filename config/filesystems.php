@@ -40,16 +40,17 @@ return [
 
         'runs' => [
             'driver' => 'local',
-            'root' => storage_path('app/corridas'),
+            'root' => storage_path('app/runs'),
             'throw' => true,
             'report' => false,
         ],
 
         /**
-         * Archivo permanente de CFDIs ya procesados: `{RFC}/{YYYY}/{nombre}.{ext}`.
+         * Permanent archive of processed CFDIs: `{RFC}/{YYYY}/{name}.{ext}`.
          *
-         * Repartirlo por RFC y anio evita que un solo directorio acumule decenas
-         * de miles de entradas. `cfdi:clean` NO lo toca: solo limpia `runs`.
+         * Splitting it by RFC and year keeps a single directory from piling up
+         * tens of thousands of entries. `cfdi:clean` does NOT touch it: it only
+         * cleans `runs`.
          */
         'documents' => [
             'driver' => 'local',

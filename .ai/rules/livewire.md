@@ -5,5 +5,8 @@ paths:
 
 # Livewire
 
-## flux:label se asocia al primer input del flux:field
-Un `<flux:label>` dentro de `<flux:field>` se asocia al primer input del bloque. Si el campo es un contenedor con varios inputs propios, no uses `flux:field`: arma el label con `flux:heading` + `flux:text` y ponle `role="group"` y `aria-label` al contenedor.
+## flux:label binds to the first input of the flux:field
+A `<flux:label>` inside a `<flux:field>` binds to the first input of the block. If the field is a container with several inputs of its own, do not use `flux:field`: build the label with `flux:heading` + `flux:text` and give the container `role="group"` and an `aria-label`.
+
+## Page titles come from render(), not #[Title]
+Attribute arguments must be constant, so a translated title cannot go in `#[Title]`. Each full-page component defines `render()` and returns `view('livewire.…')->title(__('ui.<screen>.title'))`.

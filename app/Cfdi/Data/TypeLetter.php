@@ -4,12 +4,12 @@ namespace App\Cfdi\Data;
 
 enum TypeLetter: string
 {
-    /** Ingreso: mi RFC es el emisor. */
+    /** Income: my RFC is the issuer. */
     case Income = 'I';
 
-    /** Gasto: mi RFC es el receptor. */
+    /** Expense: my RFC is the recipient. */
     case Expense = 'G';
 
-    /** Mi RFC no aparece en el comprobante. */
+    /** My RFC does not appear on the invoice. */
     case Unknown = '?';
 }

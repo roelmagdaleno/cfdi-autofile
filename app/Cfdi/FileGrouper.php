@@ -6,8 +6,8 @@ use App\Cfdi\Data\FileGroup;
 use App\Cfdi\Support\PathExpander;
 
 /**
- * Agrupa por (carpeta resuelta, nombre base) para tratar PDF+XML como una sola
- * factura. Se preserva el orden de primera aparicion.
+ * Groups by (resolved folder, base name) so a PDF+XML pair is treated as a
+ * single invoice. The order of first appearance is preserved.
  */
 final class FileGrouper
 {

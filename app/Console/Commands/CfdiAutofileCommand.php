@@ -18,18 +18,31 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class CfdiAutofileCommand extends Command
 {
-    protected $signature = 'cfdi:autofile
-        {files?* : Archivos PDF/XML a procesar.}
-        {--dir= : Procesa una carpeta completa (no recursivo).}
-        {--o|output= : Carpeta de salida (default ./Renombradas).}
-        {--move : Mueve en vez de copiar.}
-        {--no-interactive : No pregunta nada; usa sugerencias automaticas.}
-        {--rfc= : RFC propio para esta corrida (no lo guarda).}
-        {--template= : Plantilla para esta corrida (no la guarda).}
-        {--set-rfc= : Guarda tu RFC y termina.}
-        {--set-template= : Guarda la plantilla default y termina.}';
+    /**
+     * The signature and the description are built here, not declared as property
+     * defaults: `__()` is not a constant expression, and Symfony parses the
+     * signature inside `parent::__construct()`.
+     *
+     * The flag names themselves stay literal — they are the CLI contract. Only
+     * the help text after each ` : ` is translated.
+     */
+    public function __construct()
+    {
+        $this->signature = 'cfdi:autofile
+            {files?* : '.__('console.autofile.option.files').'}
+            {--dir= : '.__('console.autofile.option.dir').'}
+            {--o|output= : '.__('console.autofile.option.output').'}
+            {--move : '.__('console.autofile.option.move').'}
+            {--no-interactive : '.__('console.autofile.option.no_interactive').'}
+            {--rfc= : '.__('console.autofile.option.rfc').'}
+            {--template= : '.__('console.autofile.option.template').'}
+            {--set-rfc= : '.__('console.autofile.option.set_rfc').'}
+            {--set-template= : '.__('console.autofile.option.set_template').'}';
 
-    protected $description = 'Renombra CFDIs (PDF + XML) segun una plantilla configurable.';
+        $this->description = (string) __('console.autofile.description');
+
+        parent::__construct();
+    }
 
     public function handle(
         AppSettings $settings,
@@ -41,7 +54,7 @@ final class CfdiAutofileCommand extends Command
 
         if ($setRfc !== null && $setRfc !== '') {
             $settings->setRfc($setRfc);
-            $this->line("RFC guardado: {$settings->rfc()}");
+            $this->line((string) __('console.autofile.rfc_saved', ['rfc' => (string) $settings->rfc()]));
 
             return self::SUCCESS;
         }
@@ -50,7 +63,7 @@ final class CfdiAutofileCommand extends Command
 
         if ($setTemplate !== null && $setTemplate !== '') {
             $settings->setTemplate($setTemplate);
-            $this->line("Plantilla guardada: {$settings->template()}");
+            $this->line((string) __('console.autofile.template_saved', ['template' => $settings->template()]));
 
             return self::SUCCESS;
         }
@@ -74,7 +87,7 @@ final class CfdiAutofileCommand extends Command
         }
 
         $template = $this->stringOption('template') ?: $settings->template();
-        $output = $this->stringOption('output') ?: 'Renombradas';
+        $output = $this->stringOption('output') ?: (string) __('cfdi.default_output_directory');
 
         $collected = $collector->collect($files, $directory);
 
@@ -90,7 +103,7 @@ final class CfdiAutofileCommand extends Command
             }
 
             $this->newLine();
-            $this->line('No hay archivos PDF/XML que procesar.');
+            $this->line((string) __('console.autofile.nothing_to_process'));
 
             return self::FAILURE;
         }
@@ -101,19 +114,20 @@ final class CfdiAutofileCommand extends Command
             $this->prompt($interactive),
         );
 
-        // Solo se indexa: el archivo ya vive donde lo pidio `--output`, y copiarlo
-        // otra vez al archivo interno duplicaria cada byte sin ganar nada.
+        // Indexing only: the file already lives where `--output` asked, and
+        // copying it into the internal archive again would duplicate every byte
+        // for nothing.
         $archiver->archive($result, copyIntoArchive: false);
 
         $this->newLine();
-        $this->line("Salida: {$result->outputDirectory}");
+        $this->line((string) __('console.autofile.output_directory', ['directory' => $result->outputDirectory]));
         $this->newLine();
 
         $this->renderTable([...$errorRows, ...$result->rows]);
 
         if ($result->warnings !== []) {
             $this->newLine();
-            $this->line('Advertencias:');
+            $this->line((string) __('console.autofile.warnings'));
 
             foreach ($result->warnings as $warning) {
                 $this->output->writeln($warning, OutputInterface::OUTPUT_RAW);
@@ -121,13 +135,16 @@ final class CfdiAutofileCommand extends Command
         }
 
         $this->newLine();
-        $this->line("{$result->okFiles}/{$result->totalFiles} procesados correctamente.");
+        $this->line((string) __('console.autofile.summary', [
+            'ok' => $result->okFiles,
+            'total' => $result->totalFiles,
+        ]));
 
         return $result->allOk() ? self::SUCCESS : 2;
     }
 
     /**
-     * `null` significa "ya se imprimio el error, sal con 1".
+     * `null` means "the error has already been printed, exit with 1".
      */
     private function resolveMyRfc(AppSettings $settings, bool $interactive): ?string
     {
@@ -138,17 +155,17 @@ final class CfdiAutofileCommand extends Command
         }
 
         if (! $interactive) {
-            $this->writeError('Error: no hay RFC configurado. Usa --set-rfc o --rfc.');
+            $this->writeError((string) __('console.autofile.no_rfc_configured'));
 
             return null;
         }
 
-        $this->output->write('Tu RFC (se guarda para la proxima): ', false, OutputInterface::OUTPUT_RAW);
+        $this->output->write((string) __('console.autofile.ask_rfc'), false, OutputInterface::OUTPUT_RAW);
         $answer = (new ConsoleNamePrompt($this->input, $this->output->getOutput()))->readLine();
         $myRfc = Rfc::normalize($answer);
 
         if ($myRfc === '') {
-            $this->writeError('Error: se necesita tu RFC para saber quien es la contraparte.');
+            $this->writeError((string) __('console.autofile.rfc_required'));
 
             return null;
         }
@@ -171,9 +188,14 @@ final class CfdiAutofileCommand extends Command
     private function renderTable(array $rows): void
     {
         $this->table(
-            ['Estado', 'Original', 'Nuevo nombre', 'Nota'],
+            [
+                __('console.autofile.table.status'),
+                __('console.autofile.table.original'),
+                __('console.autofile.table.new_name'),
+                __('console.autofile.table.note'),
+            ],
             array_map(fn (FileResult $row): array => [
-                $row->status->value,
+                $row->status->label(),
                 $row->original,
                 $row->newName ?? '—',
                 $row->note,

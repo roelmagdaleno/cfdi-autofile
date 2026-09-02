@@ -10,16 +10,16 @@ use App\Cfdi\Support\Rfc;
 use Throwable;
 
 /**
- * Fallback cuando no hay XML: confianza baja.
+ * Fallback when there is no XML: low confidence.
  *
- * Nunca inventa datos: lo que no se extrae queda en `null`.
+ * It never invents data: whatever cannot be extracted stays `null`.
  */
 final class PdfCfdiParser
 {
     public const string UUID_PATTERN = '/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/u';
 
     /**
-     * El `(?<!sub)` evita que "Subtotal: $2,500.00" se confunda con el total.
+     * The `(?<!sub)` keeps "Subtotal: $2,500.00" from being read as the total.
      */
     public const string TOTAL_PATTERN = '/(?<!sub)(?<![a-z])(?:gran\s+total|importe\s+total|total)\b\D{0,20}?\$?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+\.\d{2})/iu';
 
@@ -27,9 +27,15 @@ final class PdfCfdiParser
 
     public const string DATE_DMY_PATTERN = '/\b(\d{2})\/(\d{2})\/(\d{4})\b/u';
 
-    public const string HEURISTIC_WARNING = 'datos extraidos del PDF por heuristica; el orden emisor/receptor puede estar invertido y no se pudo determinar el tipo de comprobante';
-
     public function __construct(private readonly PdfTextExtractor $extractor) {}
+
+    /**
+     * Warning attached to every CFDI read out of a PDF by heuristics.
+     */
+    public static function heuristicWarning(): string
+    {
+        return (string) __('cfdi.warning.pdf_heuristic');
+    }
 
     /**
      * @throws CfdiRejectedException
@@ -38,52 +44,45 @@ final class PdfCfdiParser
     {
         $text = $this->extractText($path);
 
-        // 1. Texto extraible. Se usa `\S` en vez de trim(): trim() de PHP no
-        // quita el espacio duro (U+00A0), pero str.strip() de Python si.
+        // 1. Extractable text. `\S` is used instead of trim(): PHP's trim() does
+        // not strip the non-breaking space (U+00A0), but Python's str.strip() does.
         if (preg_match('/\S/u', $text) !== 1) {
-            throw new CfdiRejectedException(
-                'Rechazado: el PDF no tiene texto extraible (probablemente es un escaneo '
-                .'o imagen). Consigue el XML o un PDF con texto.'
-            );
+            throw new CfdiRejectedException((string) __('cfdi.rejected.pdf_no_text'));
         }
 
         $upper = mb_strtoupper($text);
 
-        // 2. Al menos 2 RFCs con formato valido. El regex de RFC corre sobre el
-        // texto en MAYUSCULAS; los demas sobre el texto original.
+        // 2. At least 2 well-formed RFCs. The RFC regex runs over the UPPERCASED
+        // text; the others run over the original.
         preg_match_all(Rfc::PATTERN, $upper, $matches);
         /** @var list<string> $rfcs */
         $rfcs = array_values(array_unique($matches[1]));
 
         if (count($rfcs) < 2) {
-            throw new CfdiRejectedException(sprintf(
-                'Rechazado: se encontraron %d RFC(s) con formato valido y un CFDI '
-                .'necesita al menos 2 (emisor y receptor).',
-                count($rfcs),
-            ));
-        }
-
-        // 3. Timbrado: un UUID, o la frase "folio fiscal" como subcadena.
-        $hasUuid = preg_match(self::UUID_PATTERN, $text, $uuidMatch) === 1;
-
-        if (! $hasUuid && ! str_contains($upper, 'FOLIO FISCAL')) {
             throw new CfdiRejectedException(
-                "Rechazado: no aparece un UUID ni la frase 'folio fiscal'; el documento no "
-                .'parece estar timbrado ante el SAT.'
+                (string) __('cfdi.rejected.pdf_not_enough_rfcs', ['count' => count($rfcs)]),
             );
         }
 
-        // 4. Total: se toma la ULTIMA coincidencia, no la primera. El total
-        // suele venir al final del documento.
+        // 3. Stamped: either a UUID, or the phrase "folio fiscal" as a substring.
+        // That phrase is the SAT's own wording and stays in Spanish.
+        $hasUuid = preg_match(self::UUID_PATTERN, $text, $uuidMatch) === 1;
+
+        if (! $hasUuid && ! str_contains($upper, 'FOLIO FISCAL')) {
+            throw new CfdiRejectedException((string) __('cfdi.rejected.pdf_not_stamped'));
+        }
+
+        // 4. Total: the LAST match is taken, not the first. The total usually
+        // comes at the end of the document.
         preg_match_all(self::TOTAL_PATTERN, $text, $totals, PREG_SET_ORDER);
 
         if ($totals === []) {
-            throw new CfdiRejectedException('Rechazado: no se pudo identificar un total en el texto del PDF.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.pdf_no_total'));
         }
 
         $total = str_replace(',', '', $totals[count($totals) - 1][1]);
 
-        // 5. Fecha: primero ISO, luego dd/mm/yyyy.
+        // 5. Date: ISO first, then dd/mm/yyyy.
         $date = null;
 
         if (preg_match(self::DATE_ISO_PATTERN, $text, $iso) === 1) {
@@ -93,7 +92,7 @@ final class PdfCfdiParser
         }
 
         if ($date === null) {
-            throw new CfdiRejectedException('Rechazado: no se pudo identificar la fecha de emision en el texto del PDF.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.pdf_no_date'));
         }
 
         return new CfdiData(
@@ -105,12 +104,12 @@ final class PdfCfdiParser
             uuid: $hasUuid ? mb_strtolower($uuidMatch[0]) : null,
             confidence: Confidence::Low,
             source: SourceFormat::Pdf,
-            warnings: [self::HEURISTIC_WARNING],
+            warnings: [self::heuristicWarning()],
         );
     }
 
     /**
-     * Cualquier fallo de la libreria es un RECHAZO, no un crash.
+     * Any library failure is a REJECTION, not a crash.
      *
      * @throws CfdiRejectedException
      */
@@ -121,7 +120,9 @@ final class PdfCfdiParser
         } catch (CfdiRejectedException $e) {
             throw $e;
         } catch (Throwable $e) {
-            throw new CfdiRejectedException("No se pudo abrir el PDF: {$e->getMessage()}");
+            throw new CfdiRejectedException(
+                (string) __('cfdi.rejected.pdf_unreadable', ['message' => $e->getMessage()]),
+            );
         }
     }
 }

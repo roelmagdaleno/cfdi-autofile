@@ -7,11 +7,11 @@ use App\Cfdi\Data\FileGroup;
 use App\Cfdi\Exceptions\CfdiRejectedException;
 
 /**
- * XML primero, PDF como fallback.
+ * XML first, PDF as a fallback.
  *
- * Vive aparte del orquestador porque la web tambien lo necesita: la fase de
- * analisis debe decidir a quien preguntarle sin escribir nada, y no puede
- * reimplementar esta regla sin que se desincronice.
+ * It lives apart from the orchestrator because the web needs it too: the
+ * analysis phase has to decide who to ask about without writing anything, and
+ * it cannot reimplement this rule without the two drifting apart.
  */
 final class CfdiParserPipeline
 {
@@ -21,7 +21,7 @@ final class CfdiParserPipeline
     ) {}
 
     /**
-     * @throws CfdiRejectedException con el primer motivo si ninguno funciono
+     * @throws CfdiRejectedException with the first reason if none worked
      */
     public function parse(FileGroup $group): CfdiData
     {
@@ -37,14 +37,14 @@ final class CfdiParserPipeline
 
         if ($group->pdf !== null) {
             try {
-                // Si el PDF funciona, el motivo del XML se descarta.
+                // If the PDF works, the XML's reason is discarded.
                 return $this->pdfParser->parse($group->pdf);
             } catch (CfdiRejectedException $e) {
-                // Si no, se conserva el PRIMER motivo (el del XML si lo hubo).
+                // Otherwise the FIRST reason is kept (the XML's, if there was one).
                 $reason ??= $e->getMessage();
             }
         }
 
-        throw new CfdiRejectedException($reason ?? 'Rechazado: el grupo no tiene archivos que procesar.');
+        throw new CfdiRejectedException($reason ?? (string) __('cfdi.rejected.empty_group'));
     }
 }

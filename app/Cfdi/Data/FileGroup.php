@@ -3,7 +3,7 @@
 namespace App\Cfdi\Data;
 
 /**
- * PDF + XML con el mismo nombre base: una sola factura.
+ * A PDF + XML sharing the same base name: a single invoice.
  */
 final class FileGroup
 {
@@ -14,8 +14,8 @@ final class FileGroup
     ) {}
 
     /**
-     * Los archivos del grupo, XML primero. El orden importa: define el orden de
-     * las filas y de las advertencias.
+     * The files of the group, XML first. The order matters: it defines the order
+     * of the rows and of the warnings.
      *
      * @return list<string>
      */

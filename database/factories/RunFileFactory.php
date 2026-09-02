@@ -26,11 +26,11 @@ class RunFileFactory extends Factory
             'status' => FileStatus::Ok->value,
             'original_name' => "{$name}.xml",
             'new_name' => '2026-02-14 G Contador - 11600.00.xml',
-            'note' => 'copiado',
+            'note' => 'copied',
         ];
     }
 
-    public function rejected(string $reason = 'Rechazado: el XML no es un CFDI.'): static
+    public function rejected(string $reason = 'Rejected: the XML is not a CFDI.'): static
     {
         return $this->state(fn (): array => [
             'status' => FileStatus::Rejected->value,

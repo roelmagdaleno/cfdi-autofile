@@ -31,9 +31,9 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * No hay login ni modelo de usuarios, pero el framework y Livewire resuelven
-     * el guard `web` de todos modos (por ejemplo al autorizar una subida de
-     * archivos). Sin un provider de verdad, SessionGuard revienta.
+     * There is no login and no user model, but the framework and Livewire resolve
+     * the `web` guard anyway (for example when authorizing a file upload).
+     * Without a real provider, SessionGuard blows up.
      */
     protected function configureNullAuth(): void
     {

@@ -1,13 +1,13 @@
 <div class="mx-auto w-full max-w-6xl space-y-6 p-6">
     <div>
-        <flux:heading size="xl">Contrapartes</flux:heading>
-        <flux:subheading>Los nombres cortos que se usan al renombrar. Se van guardando conforme procesas CFDIs.</flux:subheading>
+        <flux:heading size="xl">{{ __('ui.counterparties.title') }}</flux:heading>
+        <flux:subheading>{{ __('ui.counterparties.subheading') }}</flux:subheading>
     </div>
 
     <flux:input
         wire:model.live.debounce.300ms="search"
         icon="magnifying-glass"
-        placeholder="Buscar por RFC, nombre o razón social"
+        :placeholder="__('ui.counterparties.search_placeholder')"
         clearable
     />
 
@@ -15,20 +15,20 @@
         <flux:callout icon="information-circle">
             <flux:callout.text>
                 @if ($search !== '')
-                    Ninguna contraparte coincide con «{{ $search }}».
+                    {{ __('ui.counterparties.no_matches', ['search' => $search]) }}
                 @else
-                    Aún no hay contrapartes. Se van guardando conforme procesas CFDIs.
+                    {{ __('ui.counterparties.empty') }}
                 @endif
             </flux:callout.text>
         </flux:callout>
     @else
         <flux:table :paginate="$this->counterparties">
             <flux:table.columns>
-                <flux:table.column>RFC</flux:table.column>
-                <flux:table.column>Nombre</flux:table.column>
-                <flux:table.column>Razón social</flux:table.column>
-                <flux:table.column align="end">Documentos</flux:table.column>
-                <flux:table.column align="end">Acciones</flux:table.column>
+                <flux:table.column>{{ __('ui.common.rfc') }}</flux:table.column>
+                <flux:table.column>{{ __('ui.common.name') }}</flux:table.column>
+                <flux:table.column>{{ __('ui.common.legal_name') }}</flux:table.column>
+                <flux:table.column align="end">{{ __('ui.counterparties.documents') }}</flux:table.column>
+                <flux:table.column align="end">{{ __('ui.common.actions') }}</flux:table.column>
             </flux:table.columns>
 
             <flux:table.rows>
@@ -40,7 +40,7 @@
                         <flux:table.cell align="end">
                             @if ($counterparty->documents_count > 0)
                                 <flux:link
-                                    :href="route('documents.index', ['contraparte' => $counterparty->id])"
+                                    :href="route('documents.index', ['counterparty' => $counterparty->id])"
                                     variant="subtle"
                                     wire:navigate
                                 >
@@ -57,7 +57,7 @@
                                 icon="pencil-square"
                                 wire:click="startEdit({{ $counterparty->id }})"
                             >
-                                Renombrar
+                                {{ __('ui.counterparties.rename') }}
                             </flux:button>
 
                             <flux:button
@@ -73,38 +73,38 @@
         </flux:table>
     @endif
 
-    <flux:modal name="editar-contraparte" class="md:w-96">
+    <flux:modal :name="\App\Livewire\ManageCounterparties::MODAL_EDIT" class="md:w-96">
         <form wire:submit="saveEdit" class="space-y-6">
             <div>
-                <flux:heading size="lg">Renombrar contraparte</flux:heading>
-                <flux:subheading>Este nombre es el que aparece en el nombre del archivo.</flux:subheading>
+                <flux:heading size="lg">{{ __('ui.counterparties.rename_heading') }}</flux:heading>
+                <flux:subheading>{{ __('ui.counterparties.rename_subheading') }}</flux:subheading>
             </div>
 
-            <flux:input wire:model="editingName" label="Nombre" />
+            <flux:input wire:model="editingName" :label="__('ui.common.name')" />
 
             <div class="flex gap-2">
                 <flux:spacer />
                 <flux:modal.close>
-                    <flux:button variant="ghost">Cancelar</flux:button>
+                    <flux:button variant="ghost">{{ __('ui.common.cancel') }}</flux:button>
                 </flux:modal.close>
-                <flux:button type="submit" variant="primary">Guardar</flux:button>
+                <flux:button type="submit" variant="primary">{{ __('ui.common.save') }}</flux:button>
             </div>
         </form>
     </flux:modal>
 
-    <flux:modal name="borrar-contraparte" class="md:w-96">
+    <flux:modal :name="\App\Livewire\ManageCounterparties::MODAL_DELETE" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">¿Borrar la contraparte?</flux:heading>
-                <flux:subheading>Se vuelve a sugerir un nombre la próxima vez que aparezca en un CFDI.</flux:subheading>
+                <flux:heading size="lg">{{ __('ui.counterparties.delete_heading') }}</flux:heading>
+                <flux:subheading>{{ __('ui.counterparties.delete_subheading') }}</flux:subheading>
             </div>
 
             <div class="flex gap-2">
                 <flux:spacer />
                 <flux:modal.close>
-                    <flux:button variant="ghost">Cancelar</flux:button>
+                    <flux:button variant="ghost">{{ __('ui.common.cancel') }}</flux:button>
                 </flux:modal.close>
-                <flux:button variant="danger" wire:click="delete">Borrar</flux:button>
+                <flux:button variant="danger" wire:click="delete">{{ __('ui.common.delete') }}</flux:button>
             </div>
         </div>
     </flux:modal>

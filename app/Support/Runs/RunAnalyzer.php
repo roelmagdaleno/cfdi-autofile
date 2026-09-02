@@ -10,10 +10,12 @@ use App\Cfdi\Parsing\CfdiParserPipeline;
 use App\Cfdi\Support\Rfc;
 
 /**
- * Fase A: descubre a que contrapartes hay que preguntarle, SIN efectos.
+ * Phase A: works out which counterparties have to be asked about, WITHOUT side
+ * effects.
  *
- * No escribe archivos ni toca la tabla `counterparties`. Los rechazos se
- * ignoran aqui: reaparecen en la fase B, ya con su motivo, via el orquestador.
+ * It writes no files and does not touch the `counterparties` table. Rejections
+ * are ignored here: they show up again in phase B, with their reason, through
+ * the orchestrator.
  */
 final class RunAnalyzer
 {

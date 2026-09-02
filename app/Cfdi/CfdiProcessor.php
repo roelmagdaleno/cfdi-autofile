@@ -19,9 +19,10 @@ use App\Cfdi\Support\Rfc;
 use Illuminate\Support\Facades\File;
 
 /**
- * El corazon compartido por el comando Artisan y la web.
+ * The core shared by the Artisan command and the web.
  *
- * No conoce la terminal ni HTTP: recibe rutas absolutas y devuelve un resultado.
+ * It knows nothing about the terminal or HTTP: it takes absolute paths and
+ * returns a result.
  */
 final class CfdiProcessor
 {
@@ -39,8 +40,9 @@ final class CfdiProcessor
     {
         $prompt ??= new SuggestedNamePrompt;
 
-        // El mkdir vive aqui a proposito: asi la rama "no hay nada que procesar"
-        // del comando (que nunca llama al procesador) no crea la carpeta.
+        // The mkdir lives here on purpose: that way the command's "nothing to
+        // process" branch (which never calls the processor) does not create the
+        // folder.
         $directory = PathExpander::absolute($options->outputDirectory);
         File::ensureDirectoryExists($directory);
         $resolved = realpath($directory) ?: $directory;
@@ -55,7 +57,7 @@ final class CfdiProcessor
             try {
                 $data = $this->parser->parse($group);
             } catch (CfdiRejectedException $e) {
-                // Los rechazados nunca se copian ni se mueven: se quedan donde estaban.
+                // Rejected files are never copied or moved: they stay where they were.
                 foreach ($group->files() as $file) {
                     $rows[] = FileResult::rejected(basename($file), $e->getMessage());
                 }
@@ -68,8 +70,10 @@ final class CfdiProcessor
             $type = PartyResolver::typeLetter($data, $options->myRfc);
 
             if ($type === TypeLetter::Unknown) {
-                // Antes del ciclo, para que los dos archivos del grupo la lleven.
-                $data = $data->withWarning("tu RFC {$options->myRfc} no aparece como emisor ni receptor");
+                // Before the loop, so both files of the group carry it.
+                $data = $data->withWarning(
+                    (string) __('cfdi.warning.rfc_not_a_party', ['rfc' => $options->myRfc]),
+                );
             }
 
             foreach ($group->files() as $file) {
@@ -116,7 +120,7 @@ final class CfdiProcessor
     }
 
     /**
-     * `nombre (2).ext`, `nombre (3).ext`, … El sufijo va antes de la extension.
+     * `name (2).ext`, `name (3).ext`, … The suffix goes before the extension.
      */
     private function freeDestination(string $directory, string $name): string
     {
@@ -145,7 +149,7 @@ final class CfdiProcessor
                 return;
             }
 
-            // `rename` falla entre sistemas de archivos distintos.
+            // `rename` fails across different filesystems.
             $this->copyPreservingMetadata($source, $destination);
             @unlink($source);
 
@@ -156,7 +160,8 @@ final class CfdiProcessor
     }
 
     /**
-     * `copy()` de PHP no preserva mtime ni permisos; `shutil.copy2` de Python si.
+     * PHP's `copy()` preserves neither mtime nor permissions; Python's
+     * `shutil.copy2` does.
      */
     private function copyPreservingMetadata(string $source, string $destination): void
     {

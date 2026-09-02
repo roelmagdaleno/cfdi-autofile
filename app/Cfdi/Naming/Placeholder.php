@@ -3,27 +3,27 @@
 namespace App\Cfdi\Naming;
 
 /**
- * Catalogo de placeholders de la plantilla del nombre.
+ * Catalog of the name template placeholders.
  *
- * Es la unica fuente de verdad: de aqui salen las claves que sustituye
- * `FileNameBuilder`, la regla de validacion de la plantilla y las pills que
- * dibuja la pantalla de ajustes. Los valores son en espanol a proposito.
+ * This is the single source of truth: the keys substituted by
+ * `FileNameBuilder`, the template validation rule and the pills drawn by the
+ * settings screen all come from here.
  */
 enum Placeholder: string
 {
-    case Fecha = 'fecha';
+    case Date = 'date';
 
-    case Tipo = 'tipo';
+    case Type = 'type';
 
-    case Contraparte = 'contraparte';
+    case Counterparty = 'counterparty';
 
-    case Monto = 'monto';
+    case Amount = 'amount';
 
     case Uuid = 'uuid';
 
-    case NotaCredito = 'nota_credito';
+    case CreditNote = 'credit_note';
 
-    /** El placeholder tal como se escribe en la plantilla. */
+    /** The placeholder as it is written inside a template. */
     public function token(): string
     {
         return '{'.$this->value.'}';
@@ -31,21 +31,14 @@ enum Placeholder: string
 
     public function description(): string
     {
-        return match ($this) {
-            self::Fecha => 'Fecha de emision en formato YYYY-MM-DD.',
-            self::Tipo => 'I si eres el emisor, G si eres el receptor.',
-            self::Contraparte => 'Nombre corto de la otra parte.',
-            self::Monto => 'Total con dos decimales.',
-            self::Uuid => 'Folio fiscal del timbre.',
-            self::NotaCredito => 'El texto "(nota de credito)" si aplica, o nada.',
-        };
+        return (string) __("cfdi.placeholder.{$this->value}");
     }
 
     /**
-     * Parte la plantilla en texto literal y placeholders conocidos.
+     * Splits the template into literal text and known placeholders.
      *
-     * Un `{placeholder}` que no este en el catalogo se devuelve como texto, tal
-     * como lo trata `FileNameBuilder`.
+     * A `{placeholder}` that is not in the catalog is returned as text, exactly
+     * the way `FileNameBuilder` treats it.
      *
      * @return list<array{placeholder: self|null, text: string}>
      */
@@ -59,10 +52,11 @@ enum Placeholder: string
 
         $segments = [];
 
-        // `PREG_SPLIT_DELIM_CAPTURE` intercala el grupo capturado (el nombre del
-        // placeholder, sin llaves) entre los trozos de texto, asi que los indices
-        // impares son siempre placeholders. Mirar la posicion y no el valor evita
-        // confundir un texto que se llame igual, como la plantilla `fecha`.
+        // `PREG_SPLIT_DELIM_CAPTURE` interleaves the captured group (the
+        // placeholder name, without braces) between the chunks of text, so the
+        // odd indexes are always placeholders. Looking at the position instead
+        // of the value avoids confusing literal text that happens to read the
+        // same, such as the template `date`.
         foreach ($pieces as $index => $piece) {
             $placeholder = $index % 2 === 1 ? self::from($piece) : null;
 
@@ -81,7 +75,7 @@ enum Placeholder: string
     }
 
     /**
-     * Patron que detecta cualquier placeholder conocido dentro de una plantilla.
+     * Pattern that detects any known placeholder inside a template.
      */
     public static function pattern(): string
     {

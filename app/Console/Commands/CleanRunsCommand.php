@@ -8,20 +8,29 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Vacia los directorios de las corridas viejas de la web.
+ * Empties the directories of old web runs.
  *
- * Sin scheduler a proposito: no hay trabajo en segundo plano en esta app.
- * Correlo a mano cuando quieras liberar espacio.
+ * Deliberately not scheduled: there is no background work in this app. Run it by
+ * hand whenever you want to free up space.
  *
- * NO borra el historial ni el archivo de CFDIs: la fila de `runs` se queda con
- * `files_purged_at`, y los documentos archivados viven en su propio disco.
+ * It does NOT delete the history or the CFDI archive: the `runs` row stays with
+ * `files_purged_at` set, and archived documents live on their own disk.
  */
 final class CleanRunsCommand extends Command
 {
-    protected $signature = 'cfdi:clean
-        {--hours=24 : Antiguedad minima, en horas, de las corridas a limpiar.}';
+    /**
+     * Built in the constructor because `__()` is not a constant expression and
+     * Symfony parses the signature inside `parent::__construct()`.
+     */
+    public function __construct()
+    {
+        $this->signature = 'cfdi:clean
+            {--hours=24 : '.__('console.clean.option.hours').'}';
 
-    protected $description = 'Libera el espacio de las corridas de la web con mas de N horas.';
+        $this->description = (string) __('console.clean.description');
+
+        parent::__construct();
+    }
 
     public function handle(RunStorage $storage): int
     {
@@ -30,8 +39,8 @@ final class CleanRunsCommand extends Command
 
         $removed = 0;
 
-        // `<=` y no `<` para que `--hours=0` limpie tambien lo escrito en este
-        // mismo segundo, es decir "limpia todo".
+        // `<=` and not `<` so that `--hours=0` also cleans what was written in
+        // this very second, i.e. "clean everything".
         $runs = Run::query()
             ->whereNull('files_purged_at')
             ->where('created_at', '<=', $cutoff)
@@ -41,13 +50,13 @@ final class CleanRunsCommand extends Command
             $storage->purge($run->id);
             $run->update(['files_purged_at' => now()]);
 
-            $this->line("Limpiada la corrida {$run->id}");
+            $this->line((string) __('console.clean.run_cleaned', ['id' => $run->id]));
             $removed++;
         }
 
         $this->line($removed === 0
-            ? 'No hay corridas viejas que limpiar.'
-            : "{$removed} corrida(s) limpiada(s).");
+            ? (string) __('console.clean.no_old_runs')
+            : (string) __('console.clean.runs_cleaned', ['count' => $removed]));
 
         $this->pruneLivewireTemp($cutoff->getTimestamp());
 
@@ -55,10 +64,10 @@ final class CleanRunsCommand extends Command
     }
 
     /**
-     * Los temporales de Livewire de un usuario que subio archivos y se fue.
+     * Livewire temporaries left by a user who uploaded files and walked away.
      *
-     * Nada mas los limpia: la fase A mueve los archivos a `entrada/` y borra el
-     * temporal, asi que solo quedan los abandonados antes de enviar.
+     * It only cleans those: phase A moves the files into `input/` and deletes the
+     * temporary, so only the ones abandoned before submitting are left.
      */
     private function pruneLivewireTemp(int $cutoff): void
     {

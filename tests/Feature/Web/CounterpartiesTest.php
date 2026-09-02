@@ -4,7 +4,7 @@ use App\Livewire\ManageCounterparties;
 use App\Models\Counterparty;
 use Livewire\Livewire;
 
-it('lista las contrapartes', function (): void {
+it('lists the counterparties', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
     Counterparty::factory()->create(['rfc' => 'BBB020202BBB', 'name' => 'AMAZON']);
 
@@ -15,12 +15,12 @@ it('lista las contrapartes', function (): void {
         ->assertSee('AMAZON');
 });
 
-it('muestra un estado vacio', function (): void {
+it('shows an empty state', function (): void {
     Livewire::test(ManageCounterparties::class)
-        ->assertSee('Aún no hay contrapartes');
+        ->assertSee('There are no counterparties yet');
 });
 
-it('filtra por busqueda', function (): void {
+it('filters by search', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
     Counterparty::factory()->create(['rfc' => 'BBB020202BBB', 'name' => 'AMAZON']);
 
@@ -30,12 +30,12 @@ it('filtra por busqueda', function (): void {
         ->assertDontSee('AMAZON');
 });
 
-it('renombra y sanitiza el nombre', function (): void {
-    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'VIEJO']);
+it('renames and sanitizes the name', function (): void {
+    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'OLD']);
 
     Livewire::test(ManageCounterparties::class)
         ->call('startEdit', $counterparty->id)
-        ->assertSet('editingName', 'VIEJO')
+        ->assertSet('editingName', 'OLD')
         ->set('editingName', 'Café/Piñón')
         ->call('saveEdit')
         ->assertHasNoErrors();
@@ -43,8 +43,8 @@ it('renombra y sanitiza el nombre', function (): void {
     $this->assertDatabaseHas('counterparties', ['rfc' => 'AAA010101AAA', 'name' => 'Cafe-Pinon']);
 });
 
-it('exige un nombre al renombrar', function (): void {
-    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'VIEJO']);
+it('requires a name when renaming', function (): void {
+    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'OLD']);
 
     Livewire::test(ManageCounterparties::class)
         ->call('startEdit', $counterparty->id)
@@ -52,11 +52,11 @@ it('exige un nombre al renombrar', function (): void {
         ->call('saveEdit')
         ->assertHasErrors('editingName');
 
-    $this->assertDatabaseHas('counterparties', ['name' => 'VIEJO']);
+    $this->assertDatabaseHas('counterparties', ['name' => 'OLD']);
 });
 
-it('cae en el RFC si el nombre queda vacio al sanitizar', function (): void {
-    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'VIEJO']);
+it('falls back to the RFC when sanitizing empties the name', function (): void {
+    $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'OLD']);
 
     Livewire::test(ManageCounterparties::class)
         ->call('startEdit', $counterparty->id)
@@ -67,7 +67,7 @@ it('cae en el RFC si el nombre queda vacio al sanitizar', function (): void {
     $this->assertDatabaseHas('counterparties', ['rfc' => 'AAA010101AAA', 'name' => 'AAA010101AAA']);
 });
 
-it('borra una contraparte', function (): void {
+it('deletes a counterparty', function (): void {
     $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA']);
 
     Livewire::test(ManageCounterparties::class)

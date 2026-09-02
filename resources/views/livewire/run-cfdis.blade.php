@@ -8,14 +8,14 @@
         extensions: ['pdf', 'xml'],
 
         get accepting() {
-            // Se lee del componente y no del render: x-data no se reevalua cuando Livewire
-            // remorfea, asi que un valor horneado se quedaria congelado.
+            // Read from the component and not from the render: x-data is not
+            // re-evaluated when Livewire re-morphs, so a baked value would stay frozen.
             return $wire.step === @js(\App\Livewire\RunCfdis::STEP_UPLOAD)
                 && @js($this->configuredRfc !== null)
                 && ! this.uploading;
         },
 
-        /** Un drag de texto o de un enlace no debe encender el overlay. */
+        /** Dragging text or a link must not light up the overlay. */
         carriesFiles(event) {
             return Array.from(event.dataTransfer?.types ?? []).includes('Files');
         },
@@ -39,8 +39,8 @@
                 return;
             }
 
-            // `items` deja de ser valido cuando el handler regresa, asi que los
-            // entries se toman de forma sincrona antes de cualquier await.
+            // `items` stops being valid once the handler returns, so the entries
+            // are taken synchronously before any await.
             const entries = Array.from(event.dataTransfer.items ?? [])
                 .map(item => item.webkitGetAsEntry?.())
                 .filter(Boolean);
@@ -64,7 +64,7 @@
             return files;
         },
 
-        /** Recorre carpetas para que soltar la descarga del SAT tal cual funcione. */
+        /** Walks folders so dropping the SAT download as-is just works. */
         async walk(entry, files) {
             if (entry.isFile) {
                 if (this.supported(entry.name)) {
@@ -76,7 +76,7 @@
 
             const reader = entry.createReader();
 
-            // `readEntries` entrega por tandas: hay que llamarlo hasta que devuelva vacio.
+            // `readEntries` delivers in batches: it has to be called until it returns empty.
             while (true) {
                 const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
 
@@ -107,7 +107,7 @@
                 this.progress = 0;
             };
 
-            // El recorte evita que `max_file_uploads` de PHP trunque en silencio.
+            // The slice keeps PHP's `max_file_uploads` from truncating silently.
             $wire.uploadMultiple('incomingFiles', files.slice(0, this.maxFiles), done, done, event => {
                 this.progress = event.detail.progress;
             });
@@ -120,19 +120,21 @@
     x-on:drop.window.prevent="drop($event)"
 >
     <div>
-        <flux:heading size="xl">Procesar CFDIs</flux:heading>
-        <flux:subheading>Sube los PDF y XML. El XML manda; el PDF es sólo respaldo.</flux:subheading>
+        <flux:heading size="xl">{{ __('ui.run.title') }}</flux:heading>
+        <flux:subheading>{{ __('ui.run.subheading') }}</flux:subheading>
     </div>
 
     @if ($step === 'upload')
         @if ($this->configuredRfc === null)
             <flux:callout variant="warning" icon="exclamation-triangle">
-                <flux:callout.heading>Falta configurar tu RFC</flux:callout.heading>
+                <flux:callout.heading>{{ __('ui.run.missing_rfc_heading') }}</flux:callout.heading>
                 <flux:callout.text>
-                    Sin tu RFC no se puede saber quién es la contraparte ni si cada CFDI es un ingreso o un gasto.
+                    {{ __('ui.run.missing_rfc_text') }}
                 </flux:callout.text>
                 <x-slot:actions>
-                    <flux:button :href="route('settings.edit')" wire:navigate size="sm">Ir a Ajustes</flux:button>
+                    <flux:button :href="route('settings.edit')" wire:navigate size="sm">
+                        {{ __('ui.run.go_to_settings') }}
+                    </flux:button>
                 </x-slot:actions>
             </flux:callout>
         @else
@@ -142,7 +144,7 @@
                         <flux:icon.identification class="size-5 shrink-0 text-zinc-400" />
 
                         <div>
-                            <flux:text variant="subtle" class="text-xs">Tu RFC</flux:text>
+                            <flux:text variant="subtle" class="text-xs">{{ __('ui.run.your_rfc') }}</flux:text>
                             <flux:heading size="sm" class="font-mono">{{ $this->configuredRfc }}</flux:heading>
                         </div>
                     </div>
@@ -154,19 +156,18 @@
                         variant="subtle"
                         icon="cog-6-tooth"
                     >
-                        Cambiar
+                        {{ __('ui.run.change') }}
                     </flux:button>
                 </div>
 
                 <flux:separator variant="subtle" class="my-3" />
 
-                <flux:text variant="subtle" class="text-xs">Así se van a llamar tus archivos</flux:text>
+                <flux:text variant="subtle" class="text-xs">{{ __('ui.run.naming_preview') }}</flux:text>
 
                 {{--
-                    Cada pieza conocida sale como pill con su explicación en el
-                    tooltip; el texto de en medio conserva sus espacios con
-                    `whitespace-pre` para que la plantilla se lea tal cual está
-                    escrita.
+                    Every known piece comes out as a pill with its explanation in
+                    the tooltip; the text in between keeps its spaces via
+                    `whitespace-pre` so the template reads exactly as written.
                 --}}
                 <div class="mt-2.5 flex flex-wrap items-center gap-x-0.2 gap-y-1.5 font-mono text-sm">
                     @foreach ($this->templateSegments as $segment)
@@ -186,7 +187,7 @@
                 </div>
 
                 <flux:text variant="subtle" class="mt-3.5 text-xs break-all">
-                    Ejemplo: <span class="font-mono">{{ $this->templateExample }}</span>
+                    {{ __('ui.run.example') }} <span class="font-mono">{{ $this->templateExample }}</span>
                 </flux:text>
             </flux:card>
         @endif
@@ -200,10 +201,10 @@
             >
                 <flux:icon.arrow-up-tray class="mx-auto size-8 text-zinc-400" />
 
-                <flux:heading class="mt-3">Arrastra tus PDF y XML aquí</flux:heading>
+                <flux:heading class="mt-3">{{ __('ui.run.drop_heading') }}</flux:heading>
 
                 <flux:text class="mt-1">
-                    Suéltalos en cualquier parte de la pantalla; también sirve una carpeta completa.
+                    {{ __('ui.run.drop_text') }}
                 </flux:text>
 
                 <flux:button
@@ -214,11 +215,11 @@
                     x-on:click="$refs.picker.click()"
                     :disabled="$this->configuredRfc === null"
                 >
-                    Selecciona archivos
+                    {{ __('ui.run.pick_files') }}
                 </flux:button>
 
                 <flux:text variant="subtle" class="mt-3">
-                    Hasta {{ \App\Livewire\RunCfdis::MAX_FILES }} archivos, 20 MB cada uno.
+                    {{ __('ui.run.limits', ['max' => \App\Livewire\RunCfdis::MAX_FILES]) }}
                 </flux:text>
 
                 <input
@@ -241,7 +242,7 @@
                     <div class="h-full bg-zinc-500 transition-all dark:bg-zinc-400" :style="`width: ${progress}%`"></div>
                 </div>
 
-                <flux:text variant="subtle">Subiendo… <span x-text="progress"></span>%</flux:text>
+                <flux:text variant="subtle">{{ __('ui.run.uploading') }} <span x-text="progress"></span>%</flux:text>
             </div>
 
             @if ($files !== [])
@@ -280,8 +281,8 @@
                 x-bind:disabled="uploading || @js($this->configuredRfc === null)"
                 wire:loading.attr="disabled"
             >
-                <span wire:loading.remove wire:target="analyze">Procesar</span>
-                <span wire:loading wire:target="analyze">Procesando…</span>
+                <span wire:loading.remove wire:target="analyze">{{ __('ui.run.process') }}</span>
+                <span wire:loading wire:target="analyze">{{ __('ui.run.processing') }}</span>
             </flux:button>
         </form>
 
@@ -293,27 +294,27 @@
             <div class="pointer-events-none rounded-2xl border-2 border-dashed border-white/60 px-12 py-10 text-center">
                 <flux:icon.arrow-up-tray class="mx-auto size-10 text-white" />
 
-                <p class="mt-4 text-lg font-medium text-white">Suelta tus PDF y XML aquí</p>
+                <p class="mt-4 text-lg font-medium text-white">{{ __('ui.run.overlay_heading') }}</p>
 
-                <p class="mt-1 text-sm text-white/70">Se agregan a los que ya tienes seleccionados.</p>
+                <p class="mt-1 text-sm text-white/70">{{ __('ui.run.overlay_text') }}</p>
             </div>
         </div>
     @endif
 
     @if ($step === 'counterparties')
         <div>
-            <flux:heading size="lg">Contrapartes nuevas</flux:heading>
+            <flux:heading size="lg">{{ __('ui.run.new_counterparties') }}</flux:heading>
             <flux:subheading>
-                Estos RFC aparecen por primera vez. El nombre propuesto sale de la razón social; edítalo si quieres.
+                {{ __('ui.run.new_counterparties_text') }}
             </flux:subheading>
         </div>
 
         <form wire:submit="confirmCounterparties" class="space-y-4">
             <flux:table>
                 <flux:table.columns>
-                    <flux:table.column>RFC</flux:table.column>
-                    <flux:table.column>Razón social</flux:table.column>
-                    <flux:table.column>Nombre a usar</flux:table.column>
+                    <flux:table.column>{{ __('ui.common.rfc') }}</flux:table.column>
+                    <flux:table.column>{{ __('ui.common.legal_name') }}</flux:table.column>
+                    <flux:table.column>{{ __('ui.run.name_to_use') }}</flux:table.column>
                 </flux:table.columns>
 
                 <flux:table.rows>
@@ -333,10 +334,10 @@
 
             <div class="flex gap-2">
                 <flux:button type="submit" variant="primary" wire:loading.attr="disabled">
-                    Guardar y procesar
+                    {{ __('ui.run.save_and_process') }}
                 </flux:button>
 
-                <flux:button variant="ghost" wire:click="startOver" type="button">Cancelar</flux:button>
+                <flux:button variant="ghost" wire:click="startOver" type="button">{{ __('ui.common.cancel') }}</flux:button>
             </div>
         </form>
     @endif
@@ -344,9 +345,9 @@
     @if ($step === 'results')
         <flux:table>
             <flux:table.columns>
-                <flux:table.column>Estado</flux:table.column>
-                <flux:table.column>Original</flux:table.column>
-                <flux:table.column>Nuevo nombre</flux:table.column>
+                <flux:table.column>{{ __('ui.common.status') }}</flux:table.column>
+                <flux:table.column>{{ __('ui.common.original') }}</flux:table.column>
+                <flux:table.column>{{ __('ui.common.new_name') }}</flux:table.column>
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
 
@@ -359,14 +360,14 @@
                                 :color="$this->statusColor($row->status)"
                                 :icon="$this->statusIcon($row->status)"
                             >
-                                {{ $row->status }}
+                                {{ $this->statusLabel($row->status) }}
                             </flux:badge>
                         </flux:table.cell>
                         <flux:table.cell class="max-w-xs whitespace-normal break-words">
                             <span class="font-mono text-xs">{{ $row->original_name }}</span>
 
-                            {{-- El motivo solo existe en los rechazados: en los demas la nota
-                                 diria "copiado" en todas las filas y no aportaria nada. --}}
+                            {{-- The reason only exists on rejected rows: on the rest the note
+                                 would read "copied" on every row and add nothing. --}}
                             @if ($this->isRejected($row->status) && $row->note !== null)
                                 <span class="mt-1 block text-xs text-red-600 dark:text-red-400">{{ $row->note }}</span>
                             @endif
@@ -375,14 +376,14 @@
                         <flux:table.cell>
                             @if ($url = $this->documentUrl($row->document))
                                 <flux:button :href="$url" size="xs" variant="ghost" icon="arrow-down-tray">
-                                    Descargar
+                                    {{ __('ui.common.download') }}
                                 </flux:button>
                             @endif
                         </flux:table.cell>
                     </flux:table.row>
                 @empty
                     <flux:table.row>
-                        <flux:table.cell colspan="4">No hay archivos PDF/XML que procesar.</flux:table.cell>
+                        <flux:table.cell colspan="4">{{ __('ui.run.no_files') }}</flux:table.cell>
                     </flux:table.row>
                 @endforelse
             </flux:table.rows>
@@ -390,7 +391,7 @@
 
         @if ($warnings !== [])
             <div>
-                <flux:heading size="sm">Advertencias</flux:heading>
+                <flux:heading size="sm">{{ __('ui.run.warnings') }}</flux:heading>
 
                 <ul class="mt-2 space-y-1">
                     @foreach ($warnings as $warning)
@@ -401,11 +402,11 @@
         @endif
 
         <div class="space-y-1">
-            <flux:text>{{ $okFiles }}/{{ $totalFiles }} procesados correctamente.</flux:text>
+            <flux:text>{{ __('ui.run.summary', ['ok' => $okFiles, 'total' => $totalFiles]) }}</flux:text>
 
             @if ($ignoredFiles > 0)
                 <flux:text variant="subtle">
-                    {{ $ignoredFiles }} archivo(s) ignorado(s) por extensión no soportada.
+                    {{ __('ui.run.ignored', ['count' => $ignoredFiles]) }}
                 </flux:text>
             @endif
         </div>
@@ -413,11 +414,11 @@
         <div class="flex gap-2">
             @if ($this->downloadUrl !== null)
                 <flux:button :href="$this->downloadUrl" variant="primary" icon="arrow-down-tray">
-                    Descargar ZIP
+                    {{ __('ui.run.download_zip') }}
                 </flux:button>
             @endif
 
-            <flux:button variant="ghost" wire:click="startOver">Procesar otros archivos</flux:button>
+            <flux:button variant="ghost" wire:click="startOver">{{ __('ui.run.start_over') }}</flux:button>
         </div>
     @endif
 </div>

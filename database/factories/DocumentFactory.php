@@ -42,7 +42,7 @@ class DocumentFactory extends Factory
     }
 
     /**
-     * Una fila del comando: apunta a un archivo del disco del usuario, sin copia.
+     * A row from the command: it points at a file on the user's disk, no copy.
      */
     public function indexedInPlace(string $path): static
     {

@@ -6,10 +6,10 @@ use App\Cfdi\Data\CfdiData;
 use App\Cfdi\Data\TypeLetter;
 
 /**
- * Nombre de ejemplo con el que se ilustra una plantilla.
+ * The example name used to illustrate a template.
  *
- * Los datos de muestra viven aqui para que Ajustes y Procesar enseñen
- * exactamente el mismo ejemplo.
+ * The sample data lives here so that Settings and Process show exactly the same
+ * example.
  */
 final class TemplateExample
 {

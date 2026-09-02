@@ -3,16 +3,16 @@
 namespace App\Cfdi\Naming;
 
 /**
- * Seam de interaccion: es lo que mantiene al orquestador libre de terminal y de
- * HTTP. No existe ninguna bandera `interactivo` en el nucleo.
+ * The interaction seam: it is what keeps the orchestrator free of both the
+ * terminal and HTTP. There is no `interactive` flag anywhere in the core.
  */
 interface CounterpartyNamePrompt
 {
     /**
-     * Nombre a usar para la contraparte.
+     * Name to use for the counterparty.
      *
-     * Las implementaciones nunca deben lanzar excepciones, y deben caer en
-     * `$suggestion` si el usuario no contesta nada.
+     * Implementations must never throw, and must fall back to `$suggestion` when
+     * the user answers nothing.
      */
     public function askName(string $rfc, ?string $legalName, string $suggestion): string;
 }

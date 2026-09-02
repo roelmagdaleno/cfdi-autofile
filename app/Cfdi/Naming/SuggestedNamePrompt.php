@@ -3,9 +3,10 @@
 namespace App\Cfdi\Naming;
 
 /**
- * No pregunta nada: usa la sugerencia automatica.
+ * Asks nothing: it uses the automatic suggestion.
  *
- * Lo usan el comando con `--no-interactive` y la web (que ya pregunto antes).
+ * Used by the command with `--no-interactive` and by the web (which already
+ * asked beforehand).
  */
 final class SuggestedNamePrompt implements CounterpartyNamePrompt
 {

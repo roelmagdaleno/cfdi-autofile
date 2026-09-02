@@ -5,7 +5,7 @@ namespace App\Cfdi\Exceptions;
 use RuntimeException;
 
 /**
- * El archivo no es un CFDI valido, o le faltan datos indispensables.
+ * The file is not a valid CFDI, or it is missing indispensable data.
  */
 final class CfdiRejectedException extends RuntimeException
 {

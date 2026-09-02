@@ -7,7 +7,7 @@ use Normalizer;
 final class NameSanitizer
 {
     /**
-     * La `ñ` se reemplaza ANTES de normalizar, igual que en el original.
+     * The `ñ` is replaced BEFORE normalizing, just like in the original.
      */
     public function stripAccents(string $text): string
     {
@@ -23,7 +23,8 @@ final class NameSanitizer
     }
 
     /**
-     * Quita comas, signos de peso, acentos y ñ; deja el nombre usable como archivo.
+     * Strips commas, dollar signs, accents and ñ; leaves the name usable as a
+     * file name.
      */
     public function sanitize(string $text): string
     {
@@ -32,8 +33,8 @@ final class NameSanitizer
         $text = (string) preg_replace('/[\/\\\\:*?"<>|]/u', '-', $text);
         $text = (string) preg_replace('/\s+/u', ' ', $text);
 
-        // Dos trims separados y en este orden: `.strip().strip('.')` de Python
-        // deja `"a. ."` como `"a. "`, con el espacio final intacto.
+        // Two separate trims, in this order: Python's `.strip().strip('.')`
+        // leaves `"a. ."` as `"a. "`, with the trailing space intact.
         return trim(trim($text), '.');
     }
 }

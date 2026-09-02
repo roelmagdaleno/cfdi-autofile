@@ -1,0 +1,138 @@
+<?php
+
+return [
+    'nav' => [
+        'process' => 'Process',
+        'documents' => 'Documents',
+        'counterparties' => 'Counterparties',
+        'settings' => 'Settings',
+    ],
+
+    'common' => [
+        'actions' => 'Actions',
+        'amount' => 'Amount',
+        'cancel' => 'Cancel',
+        'counterparty' => 'Counterparty',
+        'date' => 'Date',
+        'delete' => 'Delete',
+        'download' => 'Download',
+        'legal_name' => 'Legal name',
+        'name' => 'Name',
+        'new_name' => 'New name',
+        'original' => 'Original',
+        'rfc' => 'RFC',
+        'save' => 'Save',
+        'status' => 'Status',
+        'type' => 'Type',
+    ],
+
+    'settings' => [
+        'title' => 'Settings',
+        'subheading' => 'Your RFC and the template used to rename CFDIs.',
+        'rfc_label' => 'Your RFC',
+        'rfc_description' => 'Used to tell whether you are the issuer (income) or the recipient (expense). Stored in uppercase.',
+        'template_label' => 'Name template',
+        'add_piece' => 'Add a piece where your cursor is',
+        'restore_default' => 'Restore the default',
+        'unknown_placeholder' => 'A :token you type by hand that is not on the list is left as-is in the name.',
+        'example' => 'Example',
+        'expense' => 'Expense (G)',
+        'income' => 'Income (I)',
+        'saved' => 'Settings saved.',
+    ],
+
+    'counterparties' => [
+        'title' => 'Counterparties',
+        'subheading' => 'The short names used when renaming. They are saved as you process CFDIs.',
+        'search_placeholder' => 'Search by RFC, name or legal name',
+        'no_matches' => 'No counterparty matches «:search».',
+        'empty' => 'There are no counterparties yet. They are saved as you process CFDIs.',
+        'documents' => 'Documents',
+        'rename' => 'Rename',
+        'rename_heading' => 'Rename counterparty',
+        'rename_subheading' => 'This name is the one that shows up in the file name.',
+        'delete_heading' => 'Delete the counterparty?',
+        'delete_subheading' => 'A name will be suggested again the next time it shows up in a CFDI.',
+        'updated' => 'Counterparty updated.',
+        'deleted' => 'Counterparty deleted.',
+    ],
+
+    'documents' => [
+        'title' => 'Documents',
+        'subheading' => 'The CFDIs you already processed, stored and assigned to their counterparty.',
+        'search_placeholder' => 'Search by name or tax folio',
+        'all_counterparties' => 'All counterparties',
+        'all_types' => 'Income and expenses',
+        'no_matches' => 'No document matches the filter.',
+        'empty' => 'There are no documents yet. They are archived as you process CFDIs.',
+        'file_not_found' => 'File not found',
+        'delete_heading' => 'Remove it from the archive?',
+        'delete_subheading' => 'If the app saved its own copy, it is deleted. Files that are only indexed from your folder are left untouched.',
+        'deleted' => 'Document removed from the archive.',
+
+        'type' => [
+            'expense' => 'Expenses (G)',
+            'income' => 'Income (I)',
+            'unknown' => 'Undetermined (?)',
+        ],
+    ],
+
+    'run' => [
+        'title' => 'Process CFDIs',
+        'subheading' => 'Upload the PDFs and XMLs. The XML rules; the PDF is only a backup.',
+        'missing_rfc_heading' => 'Your RFC is not configured yet',
+        'missing_rfc_text' => 'Without your RFC there is no way to tell who the counterparty is, or whether each CFDI is income or an expense.',
+        'go_to_settings' => 'Go to Settings',
+        'your_rfc' => 'Your RFC',
+        'change' => 'Change',
+        'naming_preview' => 'This is what your files will be called',
+        'example' => 'Example:',
+        'drop_heading' => 'Drag your PDFs and XMLs here',
+        'drop_text' => 'Drop them anywhere on the screen; a whole folder works too.',
+        'pick_files' => 'Select files',
+        'limits' => 'Up to :max files, 20 MB each.',
+        'uploading' => 'Uploading…',
+        'process' => 'Process',
+        'processing' => 'Processing…',
+        'overlay_heading' => 'Drop your PDFs and XMLs here',
+        'overlay_text' => 'They are added to the ones you already selected.',
+        'new_counterparties' => 'New counterparties',
+        'new_counterparties_text' => 'These RFCs show up for the first time. The proposed name comes from the legal name; edit it if you want.',
+        'name_to_use' => 'Name to use',
+        'save_and_process' => 'Save and process',
+        'no_files' => 'There are no PDF/XML files to process.',
+        'warnings' => 'Warnings',
+        'summary' => ':ok/:total processed successfully.',
+        'ignored' => ':count file(s) ignored because of an unsupported extension.',
+        'download_zip' => 'Download ZIP',
+        'start_over' => 'Process other files',
+    ],
+
+    'validation' => [
+        'rfc' => [
+            'required' => 'Enter your RFC.',
+            'size' => 'The RFC must be 12 or 13 characters long.',
+            'format' => 'The RFC does not have a valid format.',
+            'not_configured' => 'Configure your RFC in Settings before processing.',
+        ],
+
+        'template' => [
+            'required' => 'Enter a template.',
+            'max' => 'The template is too long.',
+            'placeholder' => 'The template must include at least one placeholder, for example :token.',
+        ],
+
+        'counterparty' => [
+            'name_required' => 'Enter a name.',
+            'names_required' => 'Enter a name for each counterparty.',
+        ],
+
+        'files' => [
+            'required' => 'Select at least one file.',
+            'max' => 'At most :max files per run.',
+            'ignored' => 'At most :max files per run; :count were ignored.',
+            'item_required' => 'One of the files did not upload correctly.',
+            'item_max' => 'Each file must be at most 20 MB.',
+        ],
+    ],
+];

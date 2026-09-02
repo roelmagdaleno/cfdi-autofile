@@ -4,7 +4,7 @@ use App\Livewire\EditSettings;
 use App\Support\AppSettings;
 use Livewire\Livewire;
 
-it('guarda el RFC en mayusculas', function (): void {
+it('stores the RFC uppercased', function (): void {
     Livewire::test(EditSettings::class)
         ->set('rfc', '  bbbb010101bbb ')
         ->set('template', AppSettings::DEFAULT_TEMPLATE)
@@ -15,17 +15,17 @@ it('guarda el RFC en mayusculas', function (): void {
     $this->assertDatabaseHas('settings', ['key' => 'rfc', 'value' => 'BBBB010101BBB']);
 });
 
-it('guarda la plantilla', function (): void {
+it('stores the template', function (): void {
     Livewire::test(EditSettings::class)
         ->set('rfc', 'BBBB010101BBB')
-        ->set('template', '{tipo} {fecha} - {uuid}')
+        ->set('template', '{type} {date} - {uuid}')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(app(AppSettings::class)->template())->toBe('{tipo} {fecha} - {uuid}');
+    expect(app(AppSettings::class)->template())->toBe('{type} {date} - {uuid}');
 });
 
-it('rechaza un RFC con formato invalido', function (string $rfc): void {
+it('rejects an RFC with an invalid format', function (string $rfc): void {
     Livewire::test(EditSettings::class)
         ->set('rfc', $rfc)
         ->set('template', AppSettings::DEFAULT_TEMPLATE)
@@ -34,88 +34,88 @@ it('rechaza un RFC con formato invalido', function (string $rfc): void {
 
     $this->assertDatabaseMissing('settings', ['key' => 'rfc']);
 })->with([
-    'vacio' => [''],
-    'texto' => ['no-es-un-rfc'],
-    'corto' => ['AAA0101'],
-    'sin digitos' => ['AAAAAAAAAAAA'],
+    'empty' => [''],
+    'plain text' => ['not-an-rfc'],
+    'too short' => ['AAA0101'],
+    'no digits' => ['AAAAAAAAAAAA'],
 ]);
 
-it('rechaza una plantilla sin placeholders', function (): void {
+it('rejects a template with no placeholders', function (): void {
     Livewire::test(EditSettings::class)
         ->set('rfc', 'BBBB010101BBB')
-        ->set('template', 'factura')
+        ->set('template', 'invoice')
         ->call('save')
         ->assertHasErrors('template');
 });
 
-it('precarga los ajustes guardados', function (): void {
+it('preloads the stored settings', function (): void {
     $settings = app(AppSettings::class);
     $settings->setRfc('BBBB010101BBB');
-    $settings->setTemplate('{tipo} {fecha}');
+    $settings->setTemplate('{type} {date}');
 
     Livewire::test(EditSettings::class)
         ->assertSet('rfc', 'BBBB010101BBB')
-        ->assertSet('template', '{tipo} {fecha}');
+        ->assertSet('template', '{type} {date}');
 });
 
-it('muestra un ejemplo con la plantilla actual', function (): void {
+it('shows an example built with the current template', function (): void {
     Livewire::test(EditSettings::class)
         ->set('template', AppSettings::DEFAULT_TEMPLATE)
         ->assertSee('2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml');
 });
 
-it('deja literal un placeholder desconocido en el ejemplo', function (): void {
+it('leaves an unknown placeholder literal in the example', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha} {folio}')
+        ->set('template', '{date} {folio}')
         ->assertSee('2026-02-14 {folio}.xml');
 });
 
-it('inserta la pieza donde este el cursor', function (): void {
+it('inserts the piece where the cursor is', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha} - {monto}')
-        ->call('insertPlaceholder', 'tipo', 8, 8)
-        ->assertSet('template', '{fecha} {tipo}- {monto}');
+        ->set('template', '{date} - {amount}')
+        ->call('insertPlaceholder', 'type', 7, 7)
+        ->assertSet('template', '{date} {type}- {amount}');
 });
 
-it('inserta la pieza al final cuando no hay cursor', function (): void {
+it('inserts the piece at the end when there is no cursor', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha} ')
+        ->set('template', '{date} ')
         ->call('insertPlaceholder', 'uuid')
-        ->assertSet('template', '{fecha} {uuid}')
+        ->assertSet('template', '{date} {uuid}')
         ->assertSee('2026-02-14 A1B2C3D4-E5F6-4789-ABCD-1234567890AB.xml');
 });
 
-it('reemplaza el texto seleccionado por la pieza', function (): void {
+it('replaces the selected text with the piece', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha} BORRAME')
-        ->call('insertPlaceholder', 'tipo', 8, 15)
-        ->assertSet('template', '{fecha} {tipo}');
+        ->set('template', '{date} DELETEME')
+        ->call('insertPlaceholder', 'type', 7, 15)
+        ->assertSet('template', '{date} {type}');
 });
 
-it('recorta una seleccion que se sale de la plantilla', function (): void {
+it('clamps a selection that runs past the template', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha}')
-        ->call('insertPlaceholder', 'tipo', 999, 999)
-        ->assertSet('template', '{fecha}{tipo}');
+        ->set('template', '{date}')
+        ->call('insertPlaceholder', 'type', 999, 999)
+        ->assertSet('template', '{date}{type}');
 });
 
-it('ignora una pieza que no esta en el catalogo', function (): void {
+it('ignores a piece that is not in the catalog', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{fecha}')
+        ->set('template', '{date}')
         ->call('insertPlaceholder', 'folio')
-        ->assertSet('template', '{fecha}');
+        ->assertSet('template', '{date}');
 });
 
-it('restaura la plantilla por defecto', function (): void {
+it('restores the default template', function (): void {
     Livewire::test(EditSettings::class)
         ->set('template', '{uuid}')
         ->call('resetTemplate')
         ->assertSet('template', AppSettings::DEFAULT_TEMPLATE);
 });
 
-it('muestra el ejemplo como ingreso al cambiar el tipo', function (): void {
+it('shows the example as income when the type changes', function (): void {
     Livewire::test(EditSettings::class)
-        ->set('template', '{tipo} {fecha}')
+        ->set('template', '{type} {date}')
         ->set('previewType', 'I')
         ->assertSee('I 2026-02-14.xml');
 });

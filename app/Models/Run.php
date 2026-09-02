@@ -10,13 +10,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * Una corrida de la web.
+ * A web run.
  *
- * Sustituye al viejo `{uuid}/run.json`: sobrevive a un refresh del navegador,
- * deja que la ruta de descarga sepa si la corrida termino, y le da a los tests
- * una superficie estable donde asertar. A diferencia del JSON, la fila NO se
- * borra con `cfdi:clean`: solo se marca `files_purged_at`, asi que el historial
- * de lo que se proceso nunca se pierde.
+ * It replaces the old `{uuid}/run.json`: it survives a browser refresh, lets the
+ * download route know whether the run finished, and gives the tests a stable
+ * surface to assert against. Unlike the JSON, the row is NOT deleted by
+ * `cfdi:clean`: only `files_purged_at` is set, so the history of what was
+ * processed is never lost.
  *
  * @property string $id
  * @property string $step
@@ -71,8 +71,8 @@ class Run extends Model
     }
 
     /**
-     * Los archivos de la corrida siguen en disco, es decir `cfdi:clean` no ha
-     * pasado por aqui.
+     * The run's files are still on disk, i.e. `cfdi:clean` has not been through
+     * here yet.
      */
     public function hasFiles(): bool
     {

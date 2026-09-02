@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "roelmagdaleno/cfdi-autofile",
     "type": "project",
-    "description": "Renombra CFDIs (PDF + XML) segun una plantilla configurable.",
+    "description": "Renames CFDIs (PDF + XML) using a configurable template.",
     "license": "MIT",
     "require": {
         "php": "^8.3",

@@ -5,10 +5,10 @@ paths:
 
 # Documents
 
-## La web copia al archivo; el comando solo indexa la ruta
-`DocumentArchiver::archive()` tiene dos modos y la diferencia no es cosmetica:
+## The web copies into the archive; the command only indexes the path
+`DocumentArchiver::archive()` has two modes and the difference is not cosmetic:
 
-- Web (`copyIntoArchive: true`): los originales son subidas temporales que `cfdi:clean` borra, asi que la copia en el disco `documents` es la unica que va a quedar.
-- Comando (`copyIntoArchive: false`): el archivo ya vive donde lo pidio `--output`. Copiarlo otra vez duplicaria cada byte sin ganar nada, asi que solo se indexa la ruta absoluta y `documents.disk` queda en `null`. El costo aceptado es que el usuario puede mover o borrar ese archivo desde afuera; por eso la UI verifica `fileExists()` antes de ofrecer la descarga.
+- Web (`copyIntoArchive: true`): the originals are temporary uploads that `cfdi:clean` deletes, so the copy on the `documents` disk is the only one that will remain.
+- Command (`copyIntoArchive: false`): the file already lives where `--output` asked for it. Copying it again would duplicate every byte for nothing, so only the absolute path is indexed and `documents.disk` stays `null`. The accepted cost is that the user can move or delete that file from outside; that is why the UI checks `fileExists()` before offering the download.
 
-La llave de deduplicacion es (`folio`, `extension`); cuando no hay folio (CFDI leido del PDF por heuristica) el fallback es (`checksum`, `extension`).
+The deduplication key is (`folio`, `extension`); when there is no folio (a CFDI read from the PDF by heuristics) the fallback is (`checksum`, `extension`).

@@ -9,7 +9,7 @@ use App\Cfdi\Data\TypeLetter;
 final class PartyResolver
 {
     /**
-     * I = ingreso (yo emiti), G = gasto (yo recibi), ? = no se pudo determinar.
+     * I = income (I issued it), G = expense (I received it), ? = undetermined.
      */
     public static function typeLetter(CfdiData $data, string $myRfc): TypeLetter
     {
@@ -27,8 +27,8 @@ final class PartyResolver
     }
 
     /**
-     * Solo se compara el EMISOR: si soy el emisor, la contraparte es el receptor;
-     * en cualquier otro caso (incluido `?`) la contraparte es el emisor.
+     * Only the ISSUER is compared: if I am the issuer, the counterparty is the
+     * recipient; in every other case (including `?`) it is the issuer.
      */
     public static function counterpartyOf(CfdiData $data, string $myRfc): CounterpartyRef
     {

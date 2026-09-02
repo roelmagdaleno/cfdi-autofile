@@ -3,8 +3,8 @@
 namespace App\Cfdi\Data;
 
 /**
- * Datos extraidos de un CFDI. Lo que no se pudo extraer con certeza queda en
- * `null`: nunca se inventa un dato.
+ * Data extracted from a CFDI. Anything that could not be extracted with
+ * certainty stays `null`: a value is never invented.
  */
 final class CfdiData
 {
@@ -32,7 +32,7 @@ final class CfdiData
     }
 
     /**
-     * Copia con una advertencia mas al final.
+     * A copy with one more warning appended.
      */
     public function withWarning(string $warning): self
     {

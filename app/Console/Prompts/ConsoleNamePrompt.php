@@ -8,12 +8,12 @@ use Symfony\Component\Console\Input\StreamableInputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Prompt de terminal, byte a byte como el del CLI de Python.
+ * Terminal prompt, byte for byte like the one in the Python CLI.
  *
- * Se usa `fgets` en crudo y no `$this->ask()` por dos razones: el prompt de
- * Laravel renderiza otra forma (`> ` en su propia linea) y lanza excepcion al
- * llegar a EOF, mientras que aqui Ctrl-C y EOF deben caer silenciosamente en la
- * sugerencia, igual que el `except (EOFError, KeyboardInterrupt)` del original.
+ * It uses raw `fgets` instead of `$this->ask()` for two reasons: Laravel's
+ * prompt renders a different shape (`> ` on its own line) and throws on EOF,
+ * whereas here Ctrl-C and EOF must fall silently back to the suggestion, just
+ * like the original's `except (EOFError, KeyboardInterrupt)`.
  */
 final class ConsoleNamePrompt implements CounterpartyNamePrompt
 {
@@ -27,7 +27,11 @@ final class ConsoleNamePrompt implements CounterpartyNamePrompt
         $label = $legalName !== null && $legalName !== '' ? " ({$legalName})" : '';
 
         $this->output->write(
-            "Contraparte nueva {$rfc}{$label}\n  Nombre a usar [{$suggestion}]: ",
+            (string) __('console.prompt.new_counterparty', [
+                'rfc' => $rfc,
+                'legal' => $label,
+                'suggestion' => $suggestion,
+            ]),
             false,
             OutputInterface::OUTPUT_RAW,
         );
@@ -38,7 +42,7 @@ final class ConsoleNamePrompt implements CounterpartyNamePrompt
     }
 
     /**
-     * Lee una linea. Devuelve `null` en EOF o si el usuario interrumpe.
+     * Reads a line. Returns `null` on EOF or when the user interrupts.
      */
     public function readLine(): ?string
     {
@@ -60,7 +64,7 @@ final class ConsoleNamePrompt implements CounterpartyNamePrompt
     }
 
     /**
-     * Hace que Ctrl-C corte el `fgets` sin matar el proceso.
+     * Makes Ctrl-C cut the `fgets` short without killing the process.
      *
      * @return callable(): void
      */

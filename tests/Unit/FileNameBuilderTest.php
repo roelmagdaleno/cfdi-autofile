@@ -5,12 +5,13 @@ use App\Cfdi\Data\TypeLetter;
 use App\Cfdi\Naming\FileNameBuilder;
 use App\Cfdi\Naming\NameSanitizer;
 use App\Support\AppSettings;
+use Illuminate\Support\Facades\App;
 
 beforeEach(function (): void {
     $this->builder = new FileNameBuilder(new NameSanitizer);
 });
 
-it('construye el nombre con la plantilla default', function (): void {
+it('builds the name with the default template', function (): void {
     $data = new CfdiData(date: '2026-02-14T11:32:05', total: '11600.00', invoiceType: 'I');
 
     $name = $this->builder->build($data, TypeLetter::Expense, 'Contador', AppSettings::DEFAULT_TEMPLATE, '.pdf');
@@ -18,18 +19,30 @@ it('construye el nombre con la plantilla default', function (): void {
     expect($name)->toBe('2026-02-14 G Contador - 11600.00.pdf');
 });
 
-it('marca la nota de credito y sanitiza', function (): void {
+it('marks the credit note and sanitizes', function (): void {
     $data = new CfdiData(date: '2026-03-01T09:00:00', total: '$1,160.00', invoiceType: 'E');
 
     $name = $this->builder->build($data, TypeLetter::Expense, 'Cafe Piñón', AppSettings::DEFAULT_TEMPLATE, '.xml');
 
-    expect($name)->toBe('2026-03-01 G Cafe Pinon - 1160.00 (nota de credito).xml')
+    expect($name)->toBe('2026-03-01 G Cafe Pinon - 1160.00 (credit note).xml')
         ->and($name)->not->toContain(',')
         ->and($name)->not->toContain('$')
         ->and($name)->not->toContain('ñ');
 });
 
-it('acepta una plantilla personalizada con uuid', function (): void {
+// The credit-note suffix reaches the user's disk, so a Spanish-locale install
+// keeps producing exactly the file names it produced before the translation.
+it('uses the Spanish credit note suffix under the es locale', function (): void {
+    App::setLocale('es');
+
+    $data = new CfdiData(date: '2026-03-01T09:00:00', total: '1160.00', invoiceType: 'E');
+
+    $name = $this->builder->build($data, TypeLetter::Expense, 'Contador', AppSettings::DEFAULT_TEMPLATE, '.xml');
+
+    expect($name)->toBe('2026-03-01 G Contador - 1160.00 (nota de credito).xml');
+});
+
+it('accepts a custom template with a uuid', function (): void {
     $data = new CfdiData(
         date: '2026-02-14T11:32:05',
         total: '500',
@@ -37,20 +50,20 @@ it('acepta una plantilla personalizada con uuid', function (): void {
         uuid: 'A1B2C3D4-E5F6-4789-ABCD-1234567890AB',
     );
 
-    $name = $this->builder->build($data, TypeLetter::Income, 'Cliente', '{tipo} {fecha} - {uuid}', '.xml');
+    $name = $this->builder->build($data, TypeLetter::Income, 'Cliente', '{type} {date} - {uuid}', '.xml');
 
     expect($name)->toBe('I 2026-02-14 - A1B2C3D4-E5F6-4789-ABCD-1234567890AB.xml');
 });
 
-it('deja literal un placeholder desconocido', function (): void {
+it('leaves an unknown placeholder literal', function (): void {
     $data = new CfdiData(date: '2026-02-14T11:32:05', total: '100.00');
 
-    $name = $this->builder->build($data, TypeLetter::Income, 'X', '{fecha} {folio}', '.xml');
+    $name = $this->builder->build($data, TypeLetter::Income, 'X', '{date} {folio}', '.xml');
 
     expect($name)->toBe('2026-02-14 {folio}.xml');
 });
 
-it('convierte la letra de tipo desconocida en guion', function (): void {
+it('turns the unknown type letter into a dash', function (): void {
     $data = new CfdiData(date: '2026-02-14T11:32:05', total: '100.00');
 
     $name = $this->builder->build($data, TypeLetter::Unknown, 'Proveedor', AppSettings::DEFAULT_TEMPLATE, '.xml');
@@ -58,16 +71,16 @@ it('convierte la letra de tipo desconocida en guion', function (): void {
     expect($name)->toBe('2026-02-14 - Proveedor - 100.00.xml');
 });
 
-it('usa "cfdi" cuando el nombre queda vacio', function (): void {
-    $name = $this->builder->build(new CfdiData, TypeLetter::Unknown, '', '{fecha}{monto}', '.pdf');
+it('uses "cfdi" when the name comes out empty', function (): void {
+    $name = $this->builder->build(new CfdiData, TypeLetter::Unknown, '', '{date}{amount}', '.pdf');
 
     expect($name)->toBe('cfdi.pdf');
 });
 
-it('formatea el monto con dos decimales', function (?string $total, string $expected): void {
+it('formats the amount with two decimals', function (?string $total, string $expected): void {
     $data = new CfdiData(date: '2026-01-01', total: $total);
 
-    expect($this->builder->build($data, TypeLetter::Income, 'X', '{monto}', '.xml'))->toBe($expected.'.xml');
+    expect($this->builder->build($data, TypeLetter::Income, 'X', '{amount}', '.xml'))->toBe($expected.'.xml');
 })->with([
     ['11600', '11600.00'],
     ['$1,160.5', '1160.50'],

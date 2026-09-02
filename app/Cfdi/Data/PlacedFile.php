@@ -3,11 +3,11 @@
 namespace App\Cfdi\Data;
 
 /**
- * Todo lo que se sabe de un archivo que SI se copio o movio.
+ * Everything known about a file that WAS copied or moved.
  *
- * Existe para que el procesador no tenga que conocer Eloquent: se limita a
- * devolver los datos, y quien lo llamo decide si los archiva. Los rechazados
- * nunca traen uno.
+ * It exists so the processor does not have to know about Eloquent: it just
+ * returns the data and the caller decides whether to archive it. Rejected files
+ * never carry one.
  */
 final class PlacedFile
 {

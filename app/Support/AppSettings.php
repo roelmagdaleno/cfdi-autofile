@@ -5,14 +5,14 @@ namespace App\Support;
 use App\Models\Setting;
 
 /**
- * Fachada tipada sobre la tabla `settings`.
+ * Typed facade over the `settings` table.
  *
- * Los valores no se cachean en memoria a proposito: el comando Artisan escribe
- * y despues lee en la misma corrida.
+ * Values are deliberately not cached in memory: the Artisan command writes and
+ * then reads back within the same run.
  */
 final class AppSettings
 {
-    public const string DEFAULT_TEMPLATE = '{fecha} {tipo} {contraparte} - {monto}{nota_credito}';
+    public const string DEFAULT_TEMPLATE = '{date} {type} {counterparty} - {amount}{credit_note}';
 
     public const string KEY_RFC = 'rfc';
 
@@ -36,7 +36,7 @@ final class AppSettings
     }
 
     /**
-     * La plantilla se guarda tal cual: no se valida ni se recorta.
+     * The template is stored verbatim: it is neither validated nor trimmed.
      */
     public function setTemplate(string $template): void
     {

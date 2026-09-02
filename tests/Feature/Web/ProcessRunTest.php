@@ -13,11 +13,11 @@ use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 beforeEach(function (): void {
-    // `Storage::fake('runs')` apunta el disco a un directorio REAL bajo
-    // storage/framework/testing, que Laravel limpia entre tests. Por eso el
-    // orquestador puede escribir de verdad y los tests siguen aislados.
+    // `Storage::fake('runs')` points the disk at a REAL directory under
+    // storage/framework/testing, which Laravel cleans between tests. That is why
+    // the orchestrator can genuinely write and the tests stay isolated.
     Storage::fake(RunStorage::DISK);
-    Storage::fake('local'); // temporales de Livewire
+    Storage::fake('local'); // Livewire temporaries
 
     app(AppSettings::class)->setRfc('BBBB010101BBB');
 
@@ -35,24 +35,24 @@ function outputNames(string $runId): array
     return $names;
 }
 
-it('procesa directo cuando la contraparte ya esta cacheada', function (): void {
+it('processes straight through when the counterparty is already cached', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_RESULTS)
         ->assertSee('2026-02-14 G CONTADOR - 11600.00.xml')
         ->assertSee('OK')
-        ->assertSee('1/1 procesados correctamente.');
+        ->assertSee('1/1 processed successfully.');
 
     expect(outputNames($component->get('runId')))->toBe(['2026-02-14 G CONTADOR - 11600.00.xml']);
 });
 
-it('pide las contrapartes nuevas y todavia no escribe nada', function (): void {
+it('asks for the new counterparties and writes nothing yet', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_COUNTERPARTIES)
@@ -60,24 +60,24 @@ it('pide las contrapartes nuevas y todavia no escribe nada', function (): void {
         ->assertSet('newCounterparties.0.name', 'SERVICIOS CONTABLES NORTE')
         ->assertSee('SERVICIOS CONTABLES DEL NORTE SA DE CV');
 
-    // Nada persistido, nada escrito.
+    // Nothing persisted, nothing written.
     expect(Counterparty::count())->toBe(0)
         ->and(outputNames($component->get('runId')))->toBe([]);
 
-    // El original si quedo en entrada/.
+    // The original did land in input/.
     expect(array_map('basename', $this->storage->inputFiles($component->get('runId'))))
-        ->toBe(['factura01.xml']);
+        ->toBe(['invoice01.xml']);
 });
 
-it('guarda el nombre editado y produce el archivo con ese nombre', function (): void {
+it('saves the edited name and produces the file under it', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->set('newCounterparties.0.name', 'Contador Norte')
         ->call('confirmCounterparties')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_RESULTS)
-        ->assertSee('1/1 procesados correctamente.');
+        ->assertSee('1/1 processed successfully.');
 
     $this->assertDatabaseHas('counterparties', [
         'rfc' => 'AAA010101AAA',
@@ -88,9 +88,9 @@ it('guarda el nombre editado y produce el archivo con ese nombre', function (): 
     expect(outputNames($component->get('runId')))->toBe(['2026-02-14 G Contador Norte - 11600.00.xml']);
 });
 
-it('sanitiza el nombre que escribio el usuario', function (): void {
+it('sanitizes the name the user typed', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->set('newCounterparties.0.name', 'Café/Piñón')
         ->call('confirmCounterparties')
@@ -106,9 +106,9 @@ it('sanitiza el nombre que escribio el usuario', function (): void {
         ->and($names[0])->not->toContain(',');
 });
 
-it('exige un nombre para cada contraparte nueva', function (): void {
+it('requires a name for every new counterparty', function (): void {
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->set('newCounterparties.0.name', '')
         ->call('confirmCounterparties')
@@ -118,42 +118,42 @@ it('exige un nombre para cada contraparte nueva', function (): void {
     expect(Counterparty::count())->toBe(0);
 });
 
-it('una extension no soportada es una fila RECHAZADO, no un error de validacion', function (): void {
+it('an unsupported extension is a rejected row, not a validation error', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [UploadedFile::fake()->createWithContent('notas.txt', 'hola')])
+        ->set('files', [UploadedFile::fake()->createWithContent('notes.txt', 'hello')])
         ->call('analyze')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_RESULTS)
-        ->assertSee('RECHAZADO')
-        ->assertSee('extension no soportada')
-        ->assertSee('0/0 procesados correctamente.')
-        ->assertSee('1 archivo(s) ignorado(s)');
+        ->assertSee('REJECTED')
+        ->assertSee('unsupported extension')
+        ->assertSee('0/0 processed successfully.')
+        ->assertSee('1 file(s) ignored');
 
     expect(outputNames($component->get('runId')))->toBe([]);
 });
 
-it('rechaza un XML que no es CFDI y conserva el original', function (): void {
+it('rejects an XML that is not a CFDI and keeps the original', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('no_es_cfdi.xml', 'basura.xml')])
+        ->set('files', [fixtureUpload('not_a_cfdi.xml', 'junk.xml')])
         ->call('analyze')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_RESULTS)
-        ->assertSee('RECHAZADO')
-        ->assertSee('no es un CFDI valido')
-        ->assertSee('0/1 procesados correctamente.');
+        ->assertSee('REJECTED')
+        ->assertSee('not a valid CFDI')
+        ->assertSee('0/1 processed successfully.');
 
     $runId = $component->get('runId');
 
     expect(outputNames($runId))->toBe([])
-        ->and(array_map('basename', $this->storage->inputFiles($runId)))->toBe(['basura.xml']);
+        ->and(array_map('basename', $this->storage->inputFiles($runId)))->toBe(['junk.xml']);
 });
 
-it('no procesa sin RFC configurado', function (): void {
+it('does not process without a configured RFC', function (): void {
     app(AppSettings::class)->setRfc('');
 
     Livewire::test(RunCfdis::class)
-        ->assertSee('Falta configurar tu RFC')
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->assertSee('Your RFC is not configured yet')
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->assertHasErrors('files')
         ->assertSet('runId', '')
@@ -162,11 +162,11 @@ it('no procesa sin RFC configurado', function (): void {
     expect(Storage::disk(RunStorage::DISK)->directories())->toBe([]);
 });
 
-it('rechaza mas archivos que el tope', function (): void {
+it('rejects more files than the cap', function (): void {
     $files = [];
 
     for ($i = 0; $i <= RunCfdis::MAX_FILES; $i++) {
-        $files[] = fixtureUpload('ejemplo_cfdi.xml', "f{$i}.xml");
+        $files[] = fixtureUpload('example_cfdi.xml', "f{$i}.xml");
     }
 
     Livewire::test(RunCfdis::class)
@@ -175,53 +175,53 @@ it('rechaza mas archivos que el tope', function (): void {
         ->assertHasErrors(['files' => 'max']);
 });
 
-it('empareja el PDF y el XML del mismo nombre base', function (): void {
+it('pairs the PDF and the XML sharing a base name', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     $component = Livewire::test(RunCfdis::class)
         ->set('files', [
-            fixtureUpload('ejemplo_cfdi.xml', 'factura.xml'),
-            UploadedFile::fake()->createWithContent('factura.pdf', '%PDF-1.4 falso'),
+            fixtureUpload('example_cfdi.xml', 'invoice.xml'),
+            UploadedFile::fake()->createWithContent('invoice.pdf', '%PDF-1.4 fake'),
         ])
         ->call('analyze')
         ->assertHasNoErrors()
-        ->assertSee('2/2 procesados correctamente.');
+        ->assertSee('2/2 processed successfully.');
 
-    // Los dos terminan con el mismo nombre nuevo, tomado del XML.
+    // Both end up with the same new name, taken from the XML.
     expect(outputNames($component->get('runId')))->toBe([
         '2026-02-14 G CONTADOR - 11600.00.pdf',
         '2026-02-14 G CONTADOR - 11600.00.xml',
     ]);
 });
 
-it('rehidrata la corrida desde la URL', function (): void {
+it('rehydrates the run from the URL', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     $runId = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->get('runId');
 
-    Livewire::withQueryParams(['corrida' => $runId])
+    Livewire::withQueryParams(['run' => $runId])
         ->test(RunCfdis::class)
         ->assertSet('step', RunCfdis::STEP_RESULTS)
         ->assertSet('runId', $runId)
         ->assertSee('2026-02-14 G CONTADOR - 11600.00.xml')
-        ->assertSee('1/1 procesados correctamente.');
+        ->assertSee('1/1 processed successfully.');
 });
 
-it('una corrida desconocida vuelve al paso de subida', function (): void {
-    Livewire::withQueryParams(['corrida' => (string) Str::uuid()])
+it('an unknown run falls back to the upload step', function (): void {
+    Livewire::withQueryParams(['run' => (string) Str::uuid()])
         ->test(RunCfdis::class)
         ->assertSet('step', RunCfdis::STEP_UPLOAD)
         ->assertSet('runId', '');
 });
 
-it('startOver limpia la corrida', function (): void {
+it('startOver clears the run', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->assertSet('step', RunCfdis::STEP_RESULTS)
         ->call('startOver')
@@ -230,9 +230,9 @@ it('startOver limpia la corrida', function (): void {
         ->assertDontSee('2026-02-14 G CONTADOR - 11600.00.xml');
 });
 
-it('no duplica archivos si se procesa dos veces la misma corrida', function (): void {
+it('does not duplicate files when the same run is processed twice', function (): void {
     $component = Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'f.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'f.xml')])
         ->call('analyze')
         ->call('confirmCounterparties')
         ->call('confirmCounterparties');
@@ -241,82 +241,82 @@ it('no duplica archivos si se procesa dos veces la misma corrida', function (): 
         ->toBe(['2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml']);
 });
 
-it('acumula lo que se suelta sobre lo ya seleccionado', function (): void {
+it('accumulates what is dropped on top of the current selection', function (): void {
     Livewire::test(RunCfdis::class)
-        ->set('incomingFiles', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('incomingFiles', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->assertSet('incomingFiles', [])
-        ->set('incomingFiles', [UploadedFile::fake()->createWithContent('factura01.pdf', '%PDF-1.4 falso')])
+        ->set('incomingFiles', [UploadedFile::fake()->createWithContent('invoice01.pdf', '%PDF-1.4 fake')])
         ->assertHasNoErrors()
         ->assertCount('files', 2)
-        ->assertSee('factura01.xml')
-        ->assertSee('factura01.pdf');
+        ->assertSee('invoice01.xml')
+        ->assertSee('invoice01.pdf');
 });
 
-it('ignora un archivo ya seleccionado con el mismo nombre y tamanio', function (): void {
+it('ignores a file already selected with the same name and size', function (): void {
     Livewire::test(RunCfdis::class)
-        ->set('incomingFiles', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
-        ->set('incomingFiles', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('incomingFiles', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
+        ->set('incomingFiles', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->assertHasNoErrors()
         ->assertCount('files', 1);
 });
 
-it('corta en el tope al acumular y avisa cuantos ignoro', function (): void {
+it('stops at the cap when accumulating and reports how many it ignored', function (): void {
     $files = [];
 
     for ($i = 0; $i <= RunCfdis::MAX_FILES; $i++) {
-        $files[] = fixtureUpload('ejemplo_cfdi.xml', "f{$i}.xml");
+        $files[] = fixtureUpload('example_cfdi.xml', "f{$i}.xml");
     }
 
     Livewire::test(RunCfdis::class)
         ->set('incomingFiles', $files)
         ->assertHasErrors('files')
-        ->assertSee('se ignoraron 1')
+        ->assertSee('1 were ignored')
         ->assertCount('files', RunCfdis::MAX_FILES);
 });
 
-it('quita un archivo de la seleccion', function (): void {
+it('removes a file from the selection', function (): void {
     Livewire::test(RunCfdis::class)
         ->set('incomingFiles', [
-            fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml'),
-            fixtureUpload('ejemplo_cfdi.xml', 'factura02.xml'),
+            fixtureUpload('example_cfdi.xml', 'invoice01.xml'),
+            fixtureUpload('example_cfdi.xml', 'invoice02.xml'),
         ])
         ->call('removeFile', 0)
         ->assertCount('files', 1)
-        ->assertDontSee('factura01.xml')
-        ->assertSee('factura02.xml');
+        ->assertDontSee('invoice01.xml')
+        ->assertSee('invoice02.xml');
 });
 
-it('procesa lo que se acumulo por drop', function (): void {
+it('processes what was accumulated by dropping', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     Livewire::test(RunCfdis::class)
-        ->set('incomingFiles', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('incomingFiles', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertHasNoErrors()
         ->assertSet('step', RunCfdis::STEP_RESULTS)
-        ->assertSee('1/1 procesados correctamente.');
+        ->assertSee('1/1 processed successfully.');
 });
 
-it('muestra el RFC, la plantilla y un nombre de ejemplo', function (): void {
-    app(AppSettings::class)->setTemplate('{fecha} {tipo} - {folio}');
+it('shows the RFC, the template and an example name', function (): void {
+    app(AppSettings::class)->setTemplate('{date} {type} - {folio}');
 
     Livewire::test(RunCfdis::class)
         ->assertSee('BBBB010101BBB')
-        // La descripcion solo sale en el tooltip de la pill: confirma que la
-        // plantilla se dibujo pieza por pieza y no como texto plano.
-        ->assertSee(Placeholder::Fecha->description())
-        ->assertSee(Placeholder::Tipo->description())
+        // The description only shows up in the pill's tooltip: it confirms the
+        // template was drawn piece by piece and not as plain text.
+        ->assertSee(Placeholder::Date->description())
+        ->assertSee(Placeholder::Type->description())
         ->assertSee('{folio}')
         ->assertSee('2026-02-14 G - {folio}.xml');
 });
 
-it('guarda el resultado de la corrida en la base', function (): void {
+it('stores the run result in the database', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     $runId = Livewire::test(RunCfdis::class)
         ->set('files', [
-            fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml'),
-            UploadedFile::fake()->createWithContent('notas.txt', 'nada'),
+            fixtureUpload('example_cfdi.xml', 'invoice01.xml'),
+            UploadedFile::fake()->createWithContent('notes.txt', 'nothing'),
         ])
         ->call('analyze')
         ->get('runId');
@@ -327,16 +327,16 @@ it('guarda el resultado de la corrida en la base', function (): void {
         ->and($run->ok_files)->toBe(1)
         ->and($run->ignored_files)->toBe(1);
 
-    // Los descartes de la recoleccion van primero, igual que en el comando.
-    expect($run->files->pluck('original_name')->all())->toBe(['notas.txt', 'factura01.xml'])
-        ->and($run->files->pluck('status')->all())->toBe(['RECHAZADO', 'OK']);
+    // The collection discards come first, exactly like in the command.
+    expect($run->files->pluck('original_name')->all())->toBe(['notes.txt', 'invoice01.xml'])
+        ->and($run->files->pluck('status')->all())->toBe(['rejected', 'ok']);
 });
 
-it('archiva el CFDI y lo asigna a su contraparte', function (): void {
+it('archives the CFDI and assigns it to its counterparty', function (): void {
     $counterparty = Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze');
 
     $document = Document::query()->sole();
@@ -348,29 +348,29 @@ it('archiva el CFDI y lo asigna a su contraparte', function (): void {
         ->assertExists('AAA010101AAA/2026/2026-02-14 G CONTADOR - 11600.00.xml');
 });
 
-it('la tabla de resultados no muestra la nota copiado', function (): void {
+it('the results table does not show the copied note', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertSee('2026-02-14 G CONTADOR - 11600.00.xml')
-        ->assertDontSee('copiado');
+        ->assertDontSee('copied');
 });
 
-it('la tabla de resultados muestra el motivo del rechazo', function (): void {
+it('the results table shows the rejection reason', function (): void {
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('no_es_cfdi.xml', 'basura.xml')])
+        ->set('files', [fixtureUpload('not_a_cfdi.xml', 'junk.xml')])
         ->call('analyze')
-        ->assertSee('RECHAZADO')
-        ->assertSee('Este XML no es un CFDI valido');
+        ->assertSee('REJECTED')
+        ->assertSee('This XML is not a valid CFDI');
 });
 
-it('ofrece descargar cada archivo archivado desde la tabla', function (): void {
+it('offers a download for every archived file from the table', function (): void {
     Counterparty::factory()->create(['rfc' => 'AAA010101AAA', 'name' => 'CONTADOR']);
 
     Livewire::test(RunCfdis::class)
-        ->set('files', [fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml')])
+        ->set('files', [fixtureUpload('example_cfdi.xml', 'invoice01.xml')])
         ->call('analyze')
         ->assertSee(route('documents.download', ['document' => Document::query()->sole()->id]), escape: false);
 });

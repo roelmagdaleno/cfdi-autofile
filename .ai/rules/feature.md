@@ -5,7 +5,7 @@ paths:
 
 # Feature
 
-## expectsOutputToContain: un substring por escritura
-`expectsOutputToContain()` monta una expectativa de Mockery sobre cada llamada a `doWrite`, y la primera expectativa que matchea consume esa escritura. Dos aserciones que caen en la MISMA linea fisica (por ejemplo dos textos de la misma fila de `$this->table()`) no pueden matchear las dos: la segunda falla con "Output does not contain ...".
+## expectsOutputToContain: one substring per write
+`expectsOutputToContain()` sets up a Mockery expectation on each `doWrite` call, and the first matching expectation consumes that write. Two assertions that land on the SAME physical line (for example two texts from the same `$this->table()` row) cannot both match: the second one fails with "Output does not contain …".
 
-Para aserciones sobre el contenido de una tabla usa `Artisan::call()` + `Artisan::output()` y `expect($output)->toContain(...)`. Ver el helper `runAutofile()` en `tests/Feature/CfdiAutofileCommandTest.php`.
+For assertions about a table's contents use `Artisan::call()` + `Artisan::output()` and `expect($output)->toContain(...)`. See the `runAutofile()` helper in `tests/Feature/CfdiAutofileCommandTest.php`.

@@ -10,10 +10,13 @@ use DOMDocument;
 use DOMElement;
 
 /**
- * El XML es la fuente de verdad: confianza alta.
+ * The XML is the source of truth: high confidence.
  *
- * La busqueda de nodos es por nombre local + namespace, nunca por prefijo: da
- * igual si el documento usa `cfdi:`, `c:` o ningun prefijo.
+ * Node lookups go by local name + namespace, never by prefix: it does not
+ * matter whether the document uses `cfdi:`, `c:` or no prefix at all.
+ *
+ * The node and attribute names below stay in Spanish on purpose: they are the
+ * SAT's CFDI schema, not app vocabulary, and renaming them would break parsing.
  */
 final class XmlCfdiParser
 {
@@ -32,10 +35,7 @@ final class XmlCfdiParser
 
         if ($root->localName !== 'Comprobante'
             || ! in_array($root->namespaceURI ?? '', [self::NS_CFDI_3, self::NS_CFDI_4], true)) {
-            throw new CfdiRejectedException(
-                'Este XML no es un CFDI valido: el nodo raiz no es cfdi:Comprobante '
-                .'en el namespace de CFDI 3.3 o 4.0.'
-            );
+            throw new CfdiRejectedException((string) __('cfdi.rejected.not_a_cfdi'));
         }
 
         $date = $this->attribute($root, 'Fecha');
@@ -57,7 +57,7 @@ final class XmlCfdiParser
             $stamp = $complement->getElementsByTagNameNS(self::NS_TFD, 'TimbreFiscalDigital')->item(0);
 
             if ($stamp instanceof DOMElement) {
-                // Tal cual viene, sin cambiar mayusculas.
+                // Exactly as it comes, without changing the case.
                 $uuid = $this->attribute($stamp, 'UUID');
             }
         }
@@ -72,25 +72,25 @@ final class XmlCfdiParser
 
             if ($relatedUuid !== null && $relatedUuid !== '') {
                 $replacedUuid = $relatedUuid;
-                $warnings[] = "sustituye al CFDI {$replacedUuid} (TipoRelacion 04)";
+                $warnings[] = (string) __('cfdi.warning.replaces', ['uuid' => $replacedUuid]);
             }
         }
 
-        // Los rechazos por datos faltantes van al final, en este orden exacto.
+        // Rejections for missing data go last, in this exact order.
         if ($date === null || $date === '') {
-            throw new CfdiRejectedException('CFDI incompleto: falta el atributo Fecha en el Comprobante.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.missing_date'));
         }
 
         if ($total === null || $total === '') {
-            throw new CfdiRejectedException('CFDI incompleto: falta el atributo Total en el Comprobante.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.missing_total'));
         }
 
         if ($issuerRfc === null || $issuerRfc === '') {
-            throw new CfdiRejectedException('CFDI incompleto: falta el RFC del Emisor.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.missing_issuer_rfc'));
         }
 
         if ($recipientRfc === null || $recipientRfc === '') {
-            throw new CfdiRejectedException('CFDI incompleto: falta el RFC del Receptor.');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.missing_recipient_rfc'));
         }
 
         return new CfdiData(
@@ -117,7 +117,7 @@ final class XmlCfdiParser
         $contents = @file_get_contents($path);
 
         if ($contents === false) {
-            throw new CfdiRejectedException('Este XML no es un CFDI valido: XML mal formado (no se pudo leer el archivo).');
+            throw new CfdiRejectedException((string) __('cfdi.rejected.unreadable_xml'));
         }
 
         $previous = libxml_use_internal_errors(true);
@@ -132,10 +132,10 @@ final class XmlCfdiParser
             if ($loaded === false || $root === null) {
                 $error = libxml_get_last_error();
                 $detail = $error === false
-                    ? 'error desconocido'
+                    ? (string) __('cfdi.rejected.unknown_error')
                     : sprintf('%s: line %d, column %d', rtrim($error->message), $error->line, $error->column);
 
-                throw new CfdiRejectedException("Este XML no es un CFDI valido: XML mal formado ({$detail}).");
+                throw new CfdiRejectedException((string) __('cfdi.rejected.malformed_xml', ['detail' => $detail]));
             }
 
             return $root;
@@ -157,8 +157,8 @@ final class XmlCfdiParser
     }
 
     /**
-     * `getAttribute()` devuelve `''` para un atributo ausente; aqui distinguimos
-     * ausente (`null`) de vacio.
+     * `getAttribute()` returns `''` for a missing attribute; here we tell
+     * missing (`null`) apart from empty.
      */
     private function attribute(DOMElement $element, string $name): ?string
     {

@@ -8,16 +8,21 @@ use Illuminate\Support\Facades\Storage;
 use Tests\Support\FakePdfTextExtractor;
 use Tests\TestCase;
 
-// El archivo permanente se finge SIEMPRE. Sin esto cualquier test que procese
-// un CFDI escribiria en `storage/app/cfdis` de verdad, y como la base si se
-// reinicia entre tests, el disco acumularia duplicados ` (2)`, ` (3)`, ...
+// The permanent archive is ALWAYS faked. Without this, any test that processes a
+// CFDI would write into the real `storage/app/cfdis`, and since the database is
+// reset between tests but the disk is not, it would pile up ` (2)`, ` (3)`, …
+// duplicates.
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->beforeEach(fn () => Storage::fake(Document::DISK))
     ->in('Feature');
 
+// Unit tests boot the app too, without the database: the domain layer resolves
+// its messages through `__()`, which needs the container and the translator.
+pest()->extend(TestCase::class)->in('Unit');
+
 /**
- * Ruta absoluta de un fixture de CFDI.
+ * Absolute path of a CFDI fixture.
  */
 function cfdiFixture(string $name): string
 {
@@ -25,10 +30,11 @@ function cfdiFixture(string $name): string
 }
 
 /**
- * Directorio temporal aislado.
+ * Isolated temporary directory.
  *
- * El `realpath` es indispensable: en macOS `/var` es un symlink a `/private/var`
- * y sin resolverlo las comparaciones de rutas (agrupado, `Salida:`) no cuadran.
+ * The `realpath` is indispensable: on macOS `/var` is a symlink to
+ * `/private/var`, and without resolving it the path comparisons (grouping, the
+ * `Output:` line) do not line up.
  */
 function cfdiTempDir(): string
 {
@@ -41,10 +47,10 @@ function cfdiTempDir(): string
 }
 
 /**
- * Upload falso con el contenido REAL del fixture.
+ * Fake upload carrying the REAL contents of the fixture.
  *
- * `UploadedFile::fake()->create()` genera archivos de cero bytes, que todos los
- * parsers rechazan; hay que usar `createWithContent`.
+ * `UploadedFile::fake()->create()` produces zero-byte files, which every parser
+ * rejects; `createWithContent` has to be used instead.
  */
 function fixtureUpload(string $name, ?string $as = null): UploadedFile
 {
@@ -55,7 +61,7 @@ function fixtureUpload(string $name, ?string $as = null): UploadedFile
 }
 
 /**
- * Reemplaza el extractor de texto de PDF por uno que devuelve texto fijo.
+ * Swaps the PDF text extractor for one that returns a fixed string.
  */
 function fakePdfText(string $text): void
 {

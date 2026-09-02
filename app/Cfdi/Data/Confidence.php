@@ -4,9 +4,14 @@ namespace App\Cfdi\Data;
 
 enum Confidence: string
 {
-    /** Datos leidos del XML: fuente de verdad. */
-    case High = 'alta';
+    /** Data read from the XML: the source of truth. */
+    case High = 'high';
 
-    /** Datos leidos del PDF por heuristica. */
-    case Low = 'baja';
+    /** Data read from the PDF by heuristics. */
+    case Low = 'low';
+
+    public function label(): string
+    {
+        return (string) __("cfdi.confidence.{$this->value}");
+    }
 }

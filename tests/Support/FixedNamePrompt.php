@@ -6,8 +6,8 @@ use App\Cfdi\Naming\CounterpartyNamePrompt;
 use PHPUnit\Framework\Assert;
 
 /**
- * Prompt de prueba. Con `$mustNotBeCalled` reproduce el
- * `pytest.fail("no debio preguntar")` del proyecto de Python.
+ * Test prompt. With `$mustNotBeCalled` it reproduces the Python project's
+ * `pytest.fail("should not have asked")`.
  */
 final class FixedNamePrompt implements CounterpartyNamePrompt
 {
@@ -26,7 +26,7 @@ final class FixedNamePrompt implements CounterpartyNamePrompt
     public function askName(string $rfc, ?string $legalName, string $suggestion): string
     {
         if ($this->mustNotBeCalled) {
-            Assert::fail("no debio preguntar por {$rfc}");
+            Assert::fail("should not have asked about {$rfc}");
         }
 
         $this->calls++;

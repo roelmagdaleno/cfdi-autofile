@@ -13,19 +13,19 @@
             <flux:sidebar.nav>
                 <flux:sidebar.group class="grid">
                     <flux:sidebar.item icon="arrow-up-tray" :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
-                        Procesar
+                        {{ __('ui.nav.process') }}
                     </flux:sidebar.item>
 
                     <flux:sidebar.item icon="document-text" :href="route('documents.index')" :current="request()->routeIs('documents.*')" wire:navigate>
-                        Documentos
+                        {{ __('ui.nav.documents') }}
                     </flux:sidebar.item>
 
                     <flux:sidebar.item icon="building-office-2" :href="route('counterparties.index')" :current="request()->routeIs('counterparties.*')" wire:navigate>
-                        Contrapartes
+                        {{ __('ui.nav.counterparties') }}
                     </flux:sidebar.item>
 
                     <flux:sidebar.item icon="cog-6-tooth" :href="route('settings.edit')" :current="request()->routeIs('settings.*')" wire:navigate>
-                        Ajustes
+                        {{ __('ui.nav.settings') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>

@@ -10,21 +10,20 @@ use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use RuntimeException;
 
 /**
- * Directorios de una corrida de la web: `{uuid}/entrada` y `{uuid}/salida`.
+ * Directories of a web run: `{uuid}/input` and `{uuid}/output`.
  *
- * TODO ninguno: todo pasa por `Storage::disk('runs')`, nunca por
- * `storage_path()`. Eso es lo que permite que `Storage::fake('runs')` le entregue
- * al orquestador un directorio real y aislado durante los tests. Una sola
- * llamada a `storage_path()` haria que los tests escribieran en el storage de
- * verdad.
+ * Everything goes through `Storage::disk('runs')`, never through
+ * `storage_path()`. That is what lets `Storage::fake('runs')` hand the
+ * orchestrator a real, isolated directory during tests. A single call to
+ * `storage_path()` would make the tests write to the real storage.
  */
 final class RunStorage
 {
     public const string DISK = 'runs';
 
-    public const string INPUT = 'entrada';
+    public const string INPUT = 'input';
 
-    public const string OUTPUT = 'salida';
+    public const string OUTPUT = 'output';
 
     public function disk(): Filesystem
     {
@@ -57,10 +56,11 @@ final class RunStorage
     }
 
     /**
-     * Vacia la carpeta de salida.
+     * Empties the output folder.
      *
-     * Es obligatorio llamarlo antes de cada proceso: sin esto, un segundo envio
-     * del formulario generaria duplicados ` (2)` sobre los archivos del primero.
+     * Calling it before each process is mandatory: without this, a second
+     * submission of the form would produce ` (2)` duplicates on top of the files
+     * from the first one.
      */
     public function resetOutput(string $runId): void
     {
@@ -69,18 +69,18 @@ final class RunStorage
     }
 
     /**
-     * Mueve un archivo subido a `entrada/` conservando su nombre original.
+     * Moves an uploaded file into `input/`, keeping its original name.
      *
-     * El nombre original importa: el emparejado PDF+XML es por nombre base, y la
-     * columna "Original" lo muestra. Los nombres temporales de Livewire son
-     * hashes, asi que hay que renombrarlo aqui.
+     * The original name matters: PDF+XML pairing is done by base name, and the
+     * "Original" column displays it. Livewire's temporary names are hashes, so
+     * the file has to be renamed here.
      */
     public function storeInput(string $runId, TemporaryUploadedFile $file, ?string $originalName = null): string
     {
         $name = basename($originalName ?? $file->getClientOriginalName());
 
         if ($name === '' || $name === '.' || $name === '..' || str_contains($name, '/') || str_contains($name, '\\')) {
-            throw new RuntimeException('Nombre de archivo invalido.');
+            throw new RuntimeException((string) __('cfdi.error.invalid_file_name'));
         }
 
         $directory = "{$runId}/".self::INPUT;
@@ -109,11 +109,11 @@ final class RunStorage
     }
 
     /**
-     * Vacia los directorios de una corrida sin borrar su historial.
+     * Empties a run's directories without deleting its history.
      *
-     * La fila de `runs` y sus `run_files` se quedan: pesan bytes y son el unico
-     * registro de que esa corrida existio. Lo que se va es lo pesado, que ya se
-     * archivo en `documents` de todos modos.
+     * The `runs` row and its `run_files` stay: they weigh bytes and are the only
+     * record that the run ever happened. What goes away is the heavy part, which
+     * has been archived into `documents` anyway.
      */
     public function purge(string $runId): void
     {
@@ -140,7 +140,7 @@ final class RunStorage
     }
 
     /**
-     * Aplica el sufijo ` (2)` en vez de sobreescribir.
+     * Applies the ` (2)` suffix instead of overwriting.
      */
     private function freeName(string $directory, string $name): string
     {

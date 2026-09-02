@@ -6,16 +6,16 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\UserProvider;
 
 /**
- * Provider que nunca devuelve un usuario.
+ * A provider that never returns a user.
  *
- * Esta app corre local, con un solo usuario y sin login, asi que no hay modelo
- * `User` ni tabla `users`. Pero el framework (y Livewire, al autorizar la subida
- * de archivos) resuelve el guard `web` de todos modos, y `SessionGuard` exige un
- * `UserProvider` de verdad: dejarlo en `null` revienta con un TypeError en el
- * endpoint de uploads.
+ * This app runs locally, with a single user and no login, so there is no `User`
+ * model and no `users` table. But the framework (and Livewire, when authorizing
+ * a file upload) resolves the `web` guard anyway, and `SessionGuard` demands a
+ * real `UserProvider`: leaving it `null` blows up with a TypeError on the
+ * uploads endpoint.
  *
- * Esto hace explicito el contrato: el guard existe y siempre contesta "no hay
- * usuario".
+ * This makes the contract explicit: the guard exists and always answers "there
+ * is no user".
  */
 final class NullUserProvider implements UserProvider
 {

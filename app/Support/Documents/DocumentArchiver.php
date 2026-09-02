@@ -13,27 +13,29 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * Indexa en `documents` lo que una corrida acaba de copiar o mover.
+ * Indexes into `documents` whatever a run has just copied or moved.
  *
- * Dos modos, y la diferencia es a proposito:
+ * Two modes, and the difference is deliberate:
  *
- * - **Web** (`copyIntoArchive: true`). Los originales son subidas temporales que
- *   `cfdi:clean` borra, asi que la copia del archivo es la unica que va a
- *   quedar. Se guarda en el disco `documents`.
- * - **Comando** (`copyIntoArchive: false`). El archivo ya vive donde el usuario
- *   pidio con `--output`; copiarlo otra vez duplicaria cada byte sin ganar nada.
- *   Solo se indexa la ruta absoluta, y `disk` queda en `null`.
+ * - **Web** (`copyIntoArchive: true`). The originals are temporary uploads that
+ *   `cfdi:clean` deletes, so the archived copy is the only one that will remain.
+ *   It is stored on the `documents` disk.
+ * - **Command** (`copyIntoArchive: false`). The file already lives where the
+ *   user asked with `--output`; copying it again would duplicate every byte for
+ *   nothing. Only the absolute path is indexed, and `disk` stays `null`.
  */
 final class DocumentArchiver
 {
-    private const string NO_RFC = 'SIN-RFC';
+    /** Archive sub-directory used when the CFDI carries no counterparty RFC. */
+    private const string NO_RFC = 'NO-RFC';
 
-    private const string NO_DATE = 'sin-fecha';
+    /** Archive sub-directory used when the CFDI carries no issue date. */
+    private const string NO_DATE = 'no-date';
 
     /**
-     * Indexa las filas colocadas del resultado.
+     * Indexes the placed rows of the result.
      *
-     * @return array<int, Document> por indice de fila en `$result->rows`
+     * @return array<int, Document> keyed by row index in `$result->rows`
      */
     public function archive(ProcessResult $result, bool $copyIntoArchive): array
     {
@@ -54,7 +56,7 @@ final class DocumentArchiver
     {
         $placed = $row->placed;
 
-        // Los rechazados nunca se colocaron: no hay archivo que indexar.
+        // Rejected files were never placed: there is no file to index.
         if ($placed === null || ! is_file($placed->path)) {
             return null;
         }
@@ -90,8 +92,8 @@ final class DocumentArchiver
     }
 
     /**
-     * El folio fiscal es la llave natural. Cuando no hay (CFDI leido del PDF por
-     * heuristica) el fallback es el contenido del archivo.
+     * The tax folio is the natural key. When there is none (a CFDI read from the
+     * PDF by heuristics) the fallback is the file's contents.
      */
     private function findExisting(PlacedFile $placed, ?string $checksum): ?Document
     {
@@ -114,13 +116,14 @@ final class DocumentArchiver
             return null;
         }
 
-        // Los RFC genericos resuelven a "General" sin crear fila, asi que aqui no
-        // hay nada que encontrar y el documento se queda sin contraparte.
+        // Generic RFCs resolve to the generic counterparty name without creating
+        // a row, so there is nothing to find here and the document ends up
+        // without a counterparty.
         return Counterparty::query()->where('rfc', $rfc)->value('id');
     }
 
     /**
-     * Copia el archivo al disco permanente y devuelve su ruta relativa.
+     * Copies the file to the permanent disk and returns its relative path.
      */
     private function store(PlacedFile $placed, ?Document $existing): string
     {
@@ -130,14 +133,16 @@ final class DocumentArchiver
         $stream = fopen($placed->path, 'rb');
 
         if ($stream === false) {
-            throw new RuntimeException("No se pudo leer {$placed->path}.");
+            throw new RuntimeException(
+                (string) __('cfdi.error.unreadable_file', ['path' => $placed->path]),
+            );
         }
 
         $disk->writeStream($target, $stream);
         fclose($stream);
 
-        // Si el nombre cambio (otra plantilla, otro nombre de contraparte) el
-        // archivo viejo se queda huerfano: hay que borrarlo aqui o nunca.
+        // If the name changed (a different template, a different counterparty
+        // name) the old file is orphaned: it has to be deleted here or never.
         if ($existing !== null && $existing->isArchived() && $existing->path !== $target) {
             $disk->delete($existing->path);
         }
@@ -159,10 +164,10 @@ final class DocumentArchiver
     }
 
     /**
-     * `nombre (2).ext` cuando el lugar ya lo ocupa OTRO documento.
+     * `name (2).ext` when the slot is already taken by ANOTHER document.
      *
-     * Sobrescribir la ruta del propio documento es justo lo que queremos al
-     * reprocesar el mismo folio; pisar la de otro seria perder un archivo.
+     * Overwriting the document's own path is exactly what we want when
+     * reprocessing the same folio; overwriting someone else's would lose a file.
      */
     private function freePath(Filesystem $disk, string $target, ?Document $existing): string
     {

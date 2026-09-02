@@ -28,12 +28,11 @@ function stage(string $dir, string $fixture, string $as): string
 }
 
 /**
- * Corre el comando y devuelve el codigo de salida junto con el texto completo.
+ * Runs the command and returns the exit code along with the full text.
  *
- * No se usa `expectsOutputToContain` para el contenido de la tabla: esa API
- * exige que cada substring caiga en una llamada distinta a `doWrite`, y una fila
- * de la tabla es una sola escritura, asi que dos aserciones sobre la misma fila
- * se pisan entre si.
+ * `expectsOutputToContain` is not used for the table contents: that API requires
+ * each substring to land on a different `doWrite` call, and a table row is a
+ * single write, so two assertions about the same row overwrite each other.
  *
  * @param  array<string, mixed>  $arguments
  * @return array{code: int, output: string}
@@ -45,8 +44,8 @@ function runAutofile(array $arguments): array
     return ['code' => $code, 'output' => Artisan::output()];
 }
 
-it('copia un CFDI valido y deja el original', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'factura01.xml');
+it('copies a valid CFDI and leaves the original', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->in,
@@ -54,15 +53,15 @@ it('copia un CFDI valido y deja el original', function (): void {
         '--rfc' => 'BBBB010101BBB',
         '--no-interactive' => true,
     ])
-        ->expectsOutputToContain('1/1 procesados correctamente.')
+        ->expectsOutputToContain('1/1 processed successfully.')
         ->assertExitCode(0);
 
     expect($this->out.'/2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile()
-        ->and($this->in.'/factura01.xml')->toBeFile();
+        ->and($this->in.'/invoice01.xml')->toBeFile();
 });
 
-it('rechaza un XML que no es CFDI y no lo copia', function (): void {
-    stage($this->in, 'no_es_cfdi.xml', 'basura.xml');
+it('rejects an XML that is not a CFDI and does not copy it', function (): void {
+    stage($this->in, 'not_a_cfdi.xml', 'junk.xml');
 
     $run = runAutofile([
         '--dir' => $this->in,
@@ -72,16 +71,16 @@ it('rechaza un XML que no es CFDI y no lo copia', function (): void {
     ]);
 
     expect($run['code'])->toBe(2)
-        ->and($run['output'])->toContain('RECHAZADO')
-        ->toContain('no es un CFDI valido')
-        ->toContain('0/1 procesados correctamente.');
+        ->and($run['output'])->toContain('REJECTED')
+        ->toContain('not a valid CFDI')
+        ->toContain('0/1 processed successfully.');
 
     expect(File::files($this->out))->toBeEmpty()
-        ->and($this->in.'/basura.xml')->toBeFile();
+        ->and($this->in.'/junk.xml')->toBeFile();
 });
 
-it('con --move saca el original de la carpeta de entrada', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'f.xml');
+it('with --move it takes the original out of the input folder', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'f.xml');
 
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->in,
@@ -94,9 +93,9 @@ it('con --move saca el original de la carpeta de entrada', function (): void {
     expect(file_exists($this->in.'/f.xml'))->toBeFalse();
 });
 
-it('desambigua nombres repetidos', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'a.xml');
-    stage($this->in, 'ejemplo_cfdi.xml', 'b.xml');
+it('disambiguates repeated names', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'a.xml');
+    stage($this->in, 'example_cfdi.xml', 'b.xml');
 
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->in,
@@ -114,25 +113,25 @@ it('desambigua nombres repetidos', function (): void {
     ]);
 });
 
-it('--set-rfc guarda el RFC en mayusculas', function (): void {
+it('--set-rfc stores the RFC uppercased', function (): void {
     $this->artisan('cfdi:autofile', ['--set-rfc' => 'bbbb010101bbb'])
-        ->expectsOutputToContain('RFC guardado: BBBB010101BBB')
+        ->expectsOutputToContain('Saved RFC: BBBB010101BBB')
         ->assertExitCode(0);
 
     expect(app(AppSettings::class)->rfc())->toBe('BBBB010101BBB');
     $this->assertDatabaseHas('settings', ['key' => 'rfc', 'value' => 'BBBB010101BBB']);
 });
 
-it('--set-template persiste la plantilla', function (): void {
-    $this->artisan('cfdi:autofile', ['--set-template' => '{tipo} {fecha} - {contraparte}'])
-        ->expectsOutputToContain('Plantilla guardada: {tipo} {fecha} - {contraparte}')
+it('--set-template persists the template', function (): void {
+    $this->artisan('cfdi:autofile', ['--set-template' => '{type} {date} - {counterparty}'])
+        ->expectsOutputToContain('Saved template: {type} {date} - {counterparty}')
         ->assertExitCode(0);
 
-    expect(app(AppSettings::class)->template())->toBe('{tipo} {fecha} - {contraparte}');
+    expect(app(AppSettings::class)->template())->toBe('{type} {date} - {counterparty}');
 });
 
-it('sin --output usa la carpeta Renombradas', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'factura01.xml');
+it('without --output it uses the Renamed folder', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
     chdir($this->tmp);
 
     $this->artisan('cfdi:autofile', [
@@ -141,13 +140,13 @@ it('sin --output usa la carpeta Renombradas', function (): void {
         '--no-interactive' => true,
     ])->assertExitCode(0);
 
-    expect($this->tmp.'/Renombradas')->toBeDirectory()
-        ->and($this->tmp.'/Renombradas/2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile();
+    expect($this->tmp.'/Renamed')->toBeDirectory()
+        ->and($this->tmp.'/Renamed/2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile();
 });
 
-it('imprime la tabla con los cuatro encabezados y los dos archivos', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'factura01.xml');
-    stage($this->in, 'no_es_cfdi.xml', 'basura.xml');
+it('prints the table with the four headers and both files', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
+    stage($this->in, 'not_a_cfdi.xml', 'junk.xml');
 
     $run = runAutofile([
         '--dir' => $this->in,
@@ -157,33 +156,33 @@ it('imprime la tabla con los cuatro encabezados y los dos archivos', function ()
     ]);
 
     expect($run['code'])->toBe(2)
-        ->and($run['output'])->toContain('Estado')
+        ->and($run['output'])->toContain('Status')
         ->toContain('Original')
-        ->toContain('Nuevo nombre')
-        ->toContain('Nota')
-        ->toContain('factura01.xml')
-        ->toContain('basura.xml');
+        ->toContain('New name')
+        ->toContain('Note')
+        ->toContain('invoice01.xml')
+        ->toContain('junk.xml');
 });
 
-it('sin archivos ni --dir imprime la ayuda y sale con 1', function (): void {
+it('with no files and no --dir it prints the help and exits with 1', function (): void {
     $this->artisan('cfdi:autofile')->assertExitCode(1);
 });
 
-it('sin RFC y sin interaccion sale con 1', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'f.xml');
+it('with no RFC and no interaction it exits with 1', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'f.xml');
 
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->in,
         '--output' => $this->out,
         '--no-interactive' => true,
     ])
-        ->expectsOutputToContain('Error: no hay RFC configurado. Usa --set-rfc o --rfc.')
+        ->expectsOutputToContain('Error: no RFC is configured. Use --set-rfc or --rfc.')
         ->assertExitCode(1);
 });
 
-it('usa el RFC guardado cuando no se pasa --rfc', function (): void {
+it('uses the stored RFC when --rfc is not passed', function (): void {
     app(AppSettings::class)->setRfc('BBBB010101BBB');
-    stage($this->in, 'ejemplo_cfdi.xml', 'f.xml');
+    stage($this->in, 'example_cfdi.xml', 'f.xml');
 
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->in,
@@ -194,13 +193,13 @@ it('usa el RFC guardado cuando no se pasa --rfc', function (): void {
     expect($this->out.'/2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml')->toBeFile();
 });
 
-it('un archivo rechazado en la recoleccion no cuenta en el total', function (): void {
-    // Comportamiento real del original: `total` solo cuenta los recolectados,
-    // asi que una fila RECHAZADO puede convivir con codigo de salida 0.
-    stage($this->in, 'ejemplo_cfdi.xml', 'bueno.xml');
+it('a file rejected during collection does not count towards the total', function (): void {
+    // Real behavior of the original: `total` only counts the collected files, so
+    // a rejected row can coexist with exit code 0.
+    stage($this->in, 'example_cfdi.xml', 'bueno.xml');
 
     $run = runAutofile([
-        'files' => [$this->tmp.'/no-existe.xml'],
+        'files' => [$this->tmp.'/does-not-exist.xml'],
         '--dir' => $this->in,
         '--output' => $this->out,
         '--rfc' => 'BBBB010101BBB',
@@ -208,14 +207,14 @@ it('un archivo rechazado en la recoleccion no cuenta en el total', function (): 
     ]);
 
     expect($run['code'])->toBe(0)
-        ->and($run['output'])->toContain('no existe.')
-        ->toContain('RECHAZADO')
-        ->toContain('1/1 procesados correctamente.');
+        ->and($run['output'])->toContain('does not exist.')
+        ->toContain('REJECTED')
+        ->toContain('1/1 processed successfully.');
 });
 
-it('no crea la carpeta de salida cuando no hay nada que procesar', function (): void {
-    $bad = $this->tmp.'/notas.txt';
-    file_put_contents($bad, 'hola');
+it('does not create the output folder when there is nothing to process', function (): void {
+    $bad = $this->tmp.'/notes.txt';
+    file_put_contents($bad, 'hello');
 
     $run = runAutofile([
         'files' => [$bad],
@@ -225,38 +224,38 @@ it('no crea la carpeta de salida cuando no hay nada que procesar', function (): 
     ]);
 
     expect($run['code'])->toBe(1)
-        ->and($run['output'])->toContain('extension no soportada (solo .pdf y .xml).')
-        ->toContain('No hay archivos PDF/XML que procesar.')
-        ->not->toContain('Salida:');
+        ->and($run['output'])->toContain('unsupported extension (only .pdf and .xml).')
+        ->toContain('There are no PDF/XML files to process.')
+        ->not->toContain('Output:');
 
     expect(is_dir($this->out))->toBeFalse();
 });
 
-it('reporta una carpeta pasada como archivo suelto', function (): void {
+it('reports a folder passed as a single file', function (): void {
     $this->artisan('cfdi:autofile', [
         'files' => [$this->in],
         '--output' => $this->out,
         '--rfc' => 'BBBB010101BBB',
         '--no-interactive' => true,
     ])
-        ->expectsOutputToContain('es una carpeta (usa --dir).')
+        ->expectsOutputToContain('is a folder (use --dir).')
         ->assertExitCode(1);
 });
 
-it('reporta un --dir que no es carpeta', function (): void {
+it('reports a --dir that is not a folder', function (): void {
     $this->artisan('cfdi:autofile', [
         '--dir' => $this->tmp.'/nope',
         '--output' => $this->out,
         '--rfc' => 'BBBB010101BBB',
         '--no-interactive' => true,
     ])
-        ->expectsOutputToContain('no es una carpeta.')
+        ->expectsOutputToContain('is not a folder.')
         ->assertExitCode(1);
 });
 
-it('imprime las advertencias una vez por archivo', function (): void {
-    stage($this->in, 'cfdi_nota_credito.xml', 'par.xml');
-    file_put_contents($this->in.'/par.pdf', 'x');
+it('prints the warnings once per file', function (): void {
+    stage($this->in, 'cfdi_credit_note.xml', 'pair.xml');
+    file_put_contents($this->in.'/pair.pdf', 'x');
 
     $run = runAutofile([
         '--dir' => $this->in,
@@ -266,16 +265,16 @@ it('imprime las advertencias una vez por archivo', function (): void {
     ]);
 
     expect($run['code'])->toBe(0)
-        ->and($run['output'])->toContain('Advertencias:')
-        ->toContain('  ⚠ par.xml: tu RFC ZZZ010101ZZZ no aparece como emisor ni receptor')
-        ->toContain('  ⚠ par.pdf: tu RFC ZZZ010101ZZZ no aparece como emisor ni receptor')
-        ->toContain('2/2 procesados correctamente.');
+        ->and($run['output'])->toContain('Warnings:')
+        ->toContain('  ⚠ pair.xml: your RFC ZZZ010101ZZZ does not appear as issuer or recipient')
+        ->toContain('  ⚠ pair.pdf: your RFC ZZZ010101ZZZ does not appear as issuer or recipient')
+        ->toContain('2/2 processed successfully.');
 
-    expect($this->out.'/2026-03-01 - SERVICIOS CONTABLES NORTE - 1160.00 (nota de credito).xml')->toBeFile();
+    expect($this->out.'/2026-03-01 - SERVICIOS CONTABLES NORTE - 1160.00 (credit note).xml')->toBeFile();
 });
 
-it('indexa lo procesado sin copiarlo al archivo de la app', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'factura01.xml');
+it('indexes what was processed without copying it into the app archive', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 
     $result = runAutofile([
         '--dir' => $this->in,
@@ -296,8 +295,8 @@ it('indexa lo procesado sin copiarlo al archivo de la app', function (): void {
     expect(Storage::disk(Document::DISK)->allFiles())->toBe([]);
 });
 
-it('la tabla sigue mostrando la nota copiado', function (): void {
-    stage($this->in, 'ejemplo_cfdi.xml', 'factura01.xml');
+it('the table still shows the copied note', function (): void {
+    stage($this->in, 'example_cfdi.xml', 'invoice01.xml');
 
     $result = runAutofile([
         '--dir' => $this->in,
@@ -306,11 +305,11 @@ it('la tabla sigue mostrando la nota copiado', function (): void {
         '--no-interactive' => true,
     ]);
 
-    expect($result['output'])->toContain('copiado');
+    expect($result['output'])->toContain('copied');
 });
 
-it('no indexa los rechazados', function (): void {
-    stage($this->in, 'no_es_cfdi.xml', 'basura.xml');
+it('does not index rejected files', function (): void {
+    stage($this->in, 'not_a_cfdi.xml', 'junk.xml');
 
     runAutofile([
         '--dir' => $this->in,

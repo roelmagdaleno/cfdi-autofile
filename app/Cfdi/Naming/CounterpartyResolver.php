@@ -13,17 +13,18 @@ final class CounterpartyResolver
     ) {}
 
     /**
-     * Nombre corto para el RFC dado, cacheado en `counterparties`.
+     * Short name for the given RFC, cached in `counterparties`.
      */
     public function resolve(?string $rfc, ?string $legalName, CounterpartyNamePrompt $prompt): string
     {
         $rfc = Rfc::normalize($rfc);
 
         if (Rfc::isGeneric($rfc)) {
-            return 'General';
+            return (string) __('cfdi.generic_counterparty');
         }
 
-        // Sin RFC no hay nada que cachear: no escribimos una fila con llave vacia.
+        // Without an RFC there is nothing to cache: we do not write a row with an
+        // empty key.
         if ($rfc === '') {
             return $this->sanitizer->sanitize($this->suggester->suggest($legalName));
         }
@@ -56,7 +57,7 @@ final class CounterpartyResolver
     }
 
     /**
-     * Sugerencia sin persistir nada. La usa la fase de analisis de la web.
+     * A suggestion without persisting anything. The web's analysis phase uses it.
      */
     public function suggestionFor(string $rfc, ?string $legalName): string
     {

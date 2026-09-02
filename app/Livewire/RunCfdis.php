@@ -22,16 +22,28 @@ use App\Support\AppSettings;
 use App\Support\Documents\DocumentArchiver;
 use App\Support\Runs\RunAnalyzer;
 use App\Support\Runs\RunStorage;
+use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL as UrlGenerator;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 
-#[Title('Procesar CFDIs')]
+/**
+ * `#[Computed]` methods are reached as properties through Livewire's `__get`,
+ * which is what memoizes them for the request; calling them as methods would
+ * re-run the query every time. They are declared here so static analysis knows
+ * the magic properties exist.
+ *
+ * @property-read string|null $configuredRfc
+ * @property-read string $template
+ * @property-read list<array{placeholder: Placeholder|null, text: string}> $templateSegments
+ * @property-read string $templateExample
+ * @property-read string|null $downloadUrl
+ * @property-read Collection<int, RunFile> $allRows
+ */
 final class RunCfdis extends Component
 {
     use WithFileUploads;
@@ -43,11 +55,11 @@ final class RunCfdis extends Component
     public const string STEP_RESULTS = Run::STEP_RESULTS;
 
     /**
-     * Tope duro de archivos.
+     * Hard cap on the number of files.
      *
-     * No es cosmetico: `max_file_uploads` de PHP vale 20 por default y Livewire
-     * manda todo el `wire:model` en un solo request, asi que PHP truncaria el
-     * excedente en silencio. Con la regla, el usuario ve el limite.
+     * It is not cosmetic: PHP's `max_file_uploads` defaults to 20 and Livewire
+     * sends the whole `wire:model` in a single request, so PHP would silently
+     * truncate the excess. With the rule, the user sees the limit.
      */
     public const int MAX_FILES = 20;
 
@@ -55,18 +67,18 @@ final class RunCfdis extends Component
     public array $files = [];
 
     /**
-     * Buzon de entrada de las subidas.
+     * Inbox for the uploads.
      *
-     * Tanto el `<input type="file">` como el drag & drop escriben aqui, y
-     * `updatedIncomingFiles()` acumula en `$files`. Sin este paso intermedio
-     * cada seleccion reemplazaria la anterior, que es el comportamiento nativo
-     * de un input de archivos.
+     * Both the `<input type="file">` and drag & drop write here, and
+     * `updatedIncomingFiles()` accumulates into `$files`. Without this
+     * intermediate step every selection would replace the previous one, which is
+     * the native behavior of a file input.
      *
      * @var array<int, TemporaryUploadedFile>
      */
     public array $incomingFiles = [];
 
-    #[Url(as: 'corrida', except: '')]
+    #[Url(as: 'run', except: '')]
     public string $runId = '';
 
     public string $step = self::STEP_UPLOAD;
@@ -92,7 +104,7 @@ final class RunCfdis extends Component
         $run = Run::query()->find($this->runId);
 
         if ($run === null) {
-            // Corrida desconocida: la URL trae un uuid que no existe.
+            // Unknown run: the URL carries a uuid that does not exist.
             $this->runId = '';
 
             return;
@@ -107,11 +119,20 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Mueve lo recien subido a la seleccion acumulada.
+     * The page title is set here rather than with `#[Title]`: attribute
+     * arguments must be constant, and this one is translated.
+     */
+    public function render(): View
+    {
+        return view('livewire.run-cfdis')->title(__('ui.run.title'));
+    }
+
+    /**
+     * Moves what was just uploaded into the accumulated selection.
      *
-     * No revalida tamanio ni tipo: `livewire.temporary_file_upload.rules` ya
-     * rechaza en la subida lo que pase de 20 MB, y `analyze()` vuelve a validar
-     * `files.*` antes de procesar.
+     * It does not revalidate size or type: `livewire.temporary_file_upload.rules`
+     * already rejects anything over 20 MB at upload time, and `analyze()`
+     * validates `files.*` again before processing.
      */
     public function updatedIncomingFiles(): void
     {
@@ -135,11 +156,14 @@ final class RunCfdis extends Component
             $remaining--;
         }
 
-        // Deja el buzon libre para el siguiente drop.
+        // Leaves the inbox free for the next drop.
         $this->incomingFiles = [];
 
         if ($ignored > 0) {
-            $this->addError('files', 'Máximo '.self::MAX_FILES.' archivos por corrida; se ignoraron '.$ignored.'.');
+            $this->addError('files', __('ui.validation.files.ignored', [
+                'max' => self::MAX_FILES,
+                'count' => $ignored,
+            ]));
         }
     }
 
@@ -152,8 +176,8 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Fase A: sube, analiza y decide si hace falta preguntar. No escribe nada en
-     * `salida/` ni toca la tabla `counterparties`.
+     * Phase A: uploads, analyzes and decides whether anything has to be asked. It
+     * writes nothing into `output/` and does not touch the `counterparties` table.
      */
     public function analyze(
         AppSettings $settings,
@@ -165,7 +189,7 @@ final class RunCfdis extends Component
         $myRfc = Rfc::normalize($settings->rfc());
 
         if ($myRfc === '') {
-            $this->addError('files', 'Configura tu RFC en Ajustes antes de procesar.');
+            $this->addError('files', __('ui.validation.rfc.not_configured'));
 
             return;
         }
@@ -181,13 +205,13 @@ final class RunCfdis extends Component
             $paths[] = $storage->storeInput($this->runId, $file);
         }
 
-        // Libera el payload y evita un reenvio accidental.
+        // Frees the payload and avoids an accidental resubmission.
         $this->files = [];
 
         $collected = $collector->collect($paths);
 
-        // Las filas de recoleccion no se guardan aqui: `process()` vuelve a
-        // recolectar sobre `entrada/` y reproduce exactamente los mismos errores.
+        // The collection rows are not saved here: `process()` collects over
+        // `input/` again and reproduces exactly the same errors.
         if ($collected->paths !== [] && ($unknown = $analyzer->analyze($collected->paths, $myRfc)) !== []) {
             $this->newCounterparties = array_map(fn ($item): array => [
                 'rfc' => $item->rfc,
@@ -201,12 +225,12 @@ final class RunCfdis extends Component
             return;
         }
 
-        // Nada que preguntar: la fase A encadena directo a la fase B.
+        // Nothing to ask: phase A chains straight into phase B.
         $this->process($settings, $storage, $collector, $archiver);
     }
 
     /**
-     * Fase B: guarda las contrapartes nuevas y corre el orquestador.
+     * Phase B: saves the new counterparties and runs the orchestrator.
      */
     public function confirmCounterparties(
         NameSanitizer $sanitizer,
@@ -218,7 +242,7 @@ final class RunCfdis extends Component
         $this->validate([
             'newCounterparties.*.name' => ['required', 'string', 'max:255'],
         ], [
-            'newCounterparties.*.name.required' => 'Escribe un nombre para cada contraparte.',
+            'newCounterparties.*.name.required' => (string) __('ui.validation.counterparty.names_required'),
         ]);
 
         foreach ($this->newCounterparties as $row) {
@@ -259,7 +283,8 @@ final class RunCfdis extends Component
     }
 
     /**
-     * La plantilla partida en piezas, para dibujarla con una pill por placeholder.
+     * The template split into pieces, so it can be drawn with one pill per
+     * placeholder.
      *
      * @return list<array{placeholder: Placeholder|null, text: string}>
      */
@@ -269,7 +294,7 @@ final class RunCfdis extends Component
         return Placeholder::segments($this->template);
     }
 
-    /** Nombre de ejemplo, siempre como gasto: el selector G/I vive en Ajustes. */
+    /** Example name, always as an expense: the G/I selector lives in Settings. */
     #[Computed]
     public function templateExample(): string
     {
@@ -283,8 +308,9 @@ final class RunCfdis extends Component
             return null;
         }
 
-        // `cfdi:clean` ya se llevo `salida/`: la corrida sigue en el historial,
-        // pero su ZIP ya no se puede armar. Los documentos archivados si siguen.
+        // `cfdi:clean` has already taken `output/`: the run is still in the
+        // history, but its ZIP can no longer be built. The archived documents
+        // are still there.
         if (Run::query()->whereKey($this->runId)->whereNotNull('files_purged_at')->exists()) {
             return null;
         }
@@ -293,10 +319,10 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Las filas de la tabla de resultados, ya persistidas.
+     * The rows of the results table, already persisted.
      *
-     * Los descartes de la recoleccion van primero, igual que en el comando: ese
-     * orden esta congelado en `position`.
+     * The collection discards come first, exactly like in the command: that
+     * order is frozen into `position`.
      *
      * @return Collection<int, RunFile>
      */
@@ -315,7 +341,7 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Enlace firmado para bajar un archivo suelto de la tabla de resultados.
+     * Signed link to download a single file from the results table.
      */
     public function documentUrl(?Document $document): ?string
     {
@@ -347,11 +373,11 @@ final class RunCfdis extends Component
     protected function messages(): array
     {
         return [
-            'files.required' => 'Selecciona al menos un archivo.',
-            'files.min' => 'Selecciona al menos un archivo.',
-            'files.max' => 'Máximo '.self::MAX_FILES.' archivos por corrida.',
-            'files.*.required' => 'Alguno de los archivos no se subió bien.',
-            'files.*.max' => 'Cada archivo debe pesar máximo 20 MB.',
+            'files.required' => (string) __('ui.validation.files.required'),
+            'files.min' => (string) __('ui.validation.files.required'),
+            'files.max' => (string) __('ui.validation.files.max', ['max' => self::MAX_FILES]),
+            'files.*.required' => (string) __('ui.validation.files.item_required'),
+            'files.*.max' => (string) __('ui.validation.files.item_max'),
         ];
     }
 
@@ -361,8 +387,8 @@ final class RunCfdis extends Component
         FileCollector $collector,
         DocumentArchiver $archiver,
     ): void {
-        // Sin esto, un segundo envio generaria duplicados ` (2)` encima de los
-        // archivos de la primera pasada.
+        // Without this, a second submission would produce ` (2)` duplicates on
+        // top of the files from the first pass.
         $storage->resetOutput($this->runId);
 
         $collected = $collector->collect($storage->inputFiles($this->runId));
@@ -370,16 +396,16 @@ final class RunCfdis extends Component
         $result = app(CfdiProcessor::class)->process(
             $collected->paths,
             new ProcessOptions(
-                myRfc: (string) $this->configuredRfc(),
+                myRfc: (string) $this->configuredRfc,
                 template: $settings->template(),
                 outputDirectory: $storage->outputPath($this->runId),
-                move: false, // En la web siempre se copia: los originales son subidas temporales.
+                move: false, // The web always copies: the originals are temporary uploads.
             ),
             new SuggestedNamePrompt,
         );
 
-        // En la web la copia del archivo es la unica que va a quedar: los
-        // originales son subidas temporales que `cfdi:clean` borra.
+        // On the web the archived copy is the only one that will remain: the
+        // originals are temporary uploads that `cfdi:clean` deletes.
         $documents = $archiver->archive($result, copyIntoArchive: true);
 
         $this->warnings = $result->warnings;
@@ -407,8 +433,8 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Reescribe las filas de la corrida. Un segundo envio del formulario las
-     * reemplaza en vez de acumularlas.
+     * Rewrites the run's rows. A second submission of the form replaces them
+     * instead of piling them up.
      *
      * @param  list<CollectionError>  $errors
      * @param  array<int, Document>  $documents
@@ -450,8 +476,8 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Mismo nombre y mismo tamanio: soltar dos veces la misma carpeta no debe
-     * gastar dos lugares del tope.
+     * Same name and same size: dropping the same folder twice must not eat two
+     * slots of the cap.
      */
     private function isAlreadySelected(TemporaryUploadedFile $candidate): bool
     {
@@ -466,7 +492,7 @@ final class RunCfdis extends Component
     }
 
     /**
-     * Color del badge por estado.
+     * Badge color per status.
      */
     public function statusColor(string $status): string
     {
@@ -475,6 +501,14 @@ final class RunCfdis extends Component
             FileStatus::Review->value => 'amber',
             default => 'red',
         };
+    }
+
+    /**
+     * Human label for a raw `run_files.status` value.
+     */
+    public function statusLabel(string $status): string
+    {
+        return FileStatus::labelFor($status);
     }
 
     public function isRejected(string $status): bool

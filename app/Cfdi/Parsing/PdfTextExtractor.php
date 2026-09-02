@@ -5,7 +5,7 @@ namespace App\Cfdi\Parsing;
 interface PdfTextExtractor
 {
     /**
-     * Texto plano del PDF. Puede devolver cadena vacia si no hay texto.
+     * Plain text of the PDF. It may return an empty string when there is no text.
      */
     public function extract(string $path): string;
 }

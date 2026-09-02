@@ -16,14 +16,14 @@ class CounterpartyFactory extends Factory
      */
     public function definition(): array
     {
-        // `words()` esta tipado como array|string, asi que armamos el texto con
-        // `word()`, que siempre devuelve string.
+        // `words()` is typed as array|string, so the text is built with `word()`,
+        // which always returns a string.
         $words = fn (int $count): string => Str::upper(
             implode(' ', array_map(fn (): string => fake()->word(), range(1, $count))),
         );
 
         return [
-            // Formato de RFC moral: 3 letras + 6 digitos de fecha + 3 de homoclave.
+            // Company RFC format: 3 letters + 6 date digits + 3 of the homoclave.
             'rfc' => Str::upper(Str::random(3)).'010101'.fake()->unique()->numerify('###'),
             'name' => $words(2),
             'legal_name' => $words(3).' SA DE CV',

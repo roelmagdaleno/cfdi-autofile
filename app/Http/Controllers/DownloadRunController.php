@@ -7,13 +7,12 @@ use App\Support\Runs\RunZipper;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Descarga el ZIP de una corrida.
+ * Downloads a run's ZIP.
  *
- * No hay usuario, asi que no hay a quien acotar la descarga. Las defensas son:
- * el id es un UUID v4 impredecible y la ruta solo hace match con forma de UUID
- * (nada de traversal ni enumeracion), el enlace va firmado y expira, y la app
- * corre en local. La unica entrada es el UUID: nunca una ruta ni un nombre de
- * archivo.
+ * There is no user, so there is nobody to scope the download to. The defenses
+ * are: the id is an unpredictable UUID v4 and the route only matches a UUID
+ * shape (no traversal, no enumeration), the link is signed and expires, and the
+ * app runs locally. The only input is the UUID: never a path or a file name.
  */
 final class DownloadRunController extends Controller
 {
@@ -22,14 +21,14 @@ final class DownloadRunController extends Controller
         $model = Run::query()->find($run);
 
         abort_if($model === null, 404);
-        abort_unless($model->isFinished(), 409, 'La corrida aún no ha terminado.');
+        abort_unless($model->isFinished(), 409, (string) __('cfdi.error.run_not_finished'));
 
-        // La corrida sigue en el historial, pero `cfdi:clean` ya se llevo sus
-        // archivos. Los CFDIs archivados siguen en /documentos.
-        abort_unless($model->hasFiles(), 410, 'Los archivos de esta corrida ya se limpiaron.');
+        // The run is still in the history, but `cfdi:clean` has already taken its
+        // files. The archived CFDIs are still under /documents.
+        abort_unless($model->hasFiles(), 410, (string) __('cfdi.error.run_files_cleaned'));
 
         return response()
-            ->download($zipper->zip($run), RunZipper::FILENAME)
+            ->download($zipper->zip($run), RunZipper::filename())
             ->deleteFileAfterSend();
     }
 }

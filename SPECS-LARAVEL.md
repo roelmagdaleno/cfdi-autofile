@@ -1,177 +1,192 @@
-# cfdi-autofile — Especificación para la migración a Laravel
+# cfdi-autofile — Specification for the migration to Laravel
 
-Documento de referencia para reimplementar el CLI de Python `cfdi-autofile` como
-una aplicación Laravel. Está escrito para que Claude Code lo pueda ejecutar
-dentro de un proyecto Laravel recién creado con Herd, sin tener que leer el
-código de Python.
+Reference document for reimplementing the Python `cfdi-autofile` CLI as a Laravel
+application. It was written so that Claude Code could execute it inside a freshly
+created Laravel project on Herd, without having to read the Python code.
 
-**Fuente de verdad del comportamiento:** el proyecto Python en
-`/Users/roelmagdaleno/Code/Roel/cfdi-autofile` (`src/cfdi_autofile/` y `tests/`).
-Cuando este documento y el código de Python difieran, gana el código de Python.
+**Source of truth for behavior:** the Python project at
+`/Users/roelmagdaleno/Code/Roel/cfdi-autofile` (`src/cfdi_autofile/` and `tests/`).
+Where this document and the Python code disagree, the Python code wins.
 
----
-
-## 1. Qué hace el producto
-
-Renombra CFDIs (comprobantes fiscales mexicanos: PDF + XML) según una plantilla
-configurable, y **rechaza** los archivos que no son CFDIs reales.
-
-Alcance deliberadamente chico: **solo** renombrado + validación. No hay watcher
-de carpetas, ni Google Drive/Sheets, ni integración con el SAT, ni nada
-corriendo en segundo plano.
-
-Reglas de producto que no se negocian:
-
-1. **Nunca se inventa un dato.** Lo que no se pudo extraer con certeza queda en
-   `null` y el archivo se marca para revisión o se rechaza.
-2. **Los archivos rechazados nunca se copian ni se mueven.** Se quedan donde
-   estaban.
-3. **El XML es la fuente de verdad.** El PDF es solo un fallback de confianza
-   baja cuando no hay XML.
-4. **PDF + XML con el mismo nombre base = una sola factura.** Los dos terminan
-   con el mismo nombre nuevo.
+> **Status.** The migration is done. This document is kept as the record of what
+> was specified, translated to English and with the identifiers realigned to the
+> names that were actually built. Several decisions below were superseded during
+> implementation — they are called out inline with a **Built as** note. For
+> anything about the code as it stands today, the code itself and `.ai/rules/`
+> are authoritative, not this file.
 
 ---
 
-## 2. Decisiones de arquitectura ya tomadas
+## 1. What the product does
 
-| Decisión | Valor |
+It renames CFDIs (Mexican tax invoices: PDF + XML) according to a configurable
+template, and **rejects** files that are not real CFDIs.
+
+The scope is deliberately small: **only** renaming + validation. There is no
+folder watcher, no Google Drive/Sheets, no SAT integration, and nothing running
+in the background.
+
+Non-negotiable product rules:
+
+1. **A value is never invented.** Anything that could not be extracted with
+   certainty stays `null`, and the file is either flagged for review or rejected.
+2. **Rejected files are never copied or moved.** They stay where they were.
+3. **The XML is the source of truth.** The PDF is only a low-confidence fallback
+   when there is no XML.
+4. **A PDF + XML sharing a base name is a single invoice.** Both end up with the
+   same new name.
+
+---
+
+## 2. Architecture decisions already taken
+
+| Decision | Value |
 | --- | --- |
-| Framework | Laravel 12, PHP 8.4 (Herd) |
-| Interfaces | **Dos**: app web + comando Artisan, ambas sobre un mismo core de servicios |
-| Persistencia | **SQLite** (`database/database.sqlite`) para settings y contrapartes |
-| Usuarios | **Un solo usuario, sin login.** Corre local en Herd. Sin `users`, sin Breeze, sin Fortify |
-| Paridad | **Exacta** con el Python, incluidos los mensajes de rechazo en español. Los 4 archivos de test se portan a Pest |
-| Frontend | Blade + Tailwind + Alpine.js (o Livewire si se prefiere). Sin SPA, sin build complejo |
+| Framework | Laravel 12, PHP 8.4 (Herd) — **Built as:** Laravel 13 |
+| Interfaces | **Two**: web app + Artisan command, both on top of one shared service core |
+| Persistence | **SQLite** (`database/database.sqlite`) for settings and counterparties |
+| Users | **A single user, no login.** It runs locally on Herd. No `users` table, no Breeze, no Fortify |
+| Parity | **Exact** with the Python, behavior and output *format*. **Built as:** the wording is translated and lives in `lang/`; `lang/es` reproduces the original Spanish strings verbatim, so parity is preserved under the `es` locale. The 4 test files are ported to Pest |
+| Frontend | Blade + Tailwind + Alpine.js (or Livewire if preferred). No SPA, no complex build — **Built as:** Livewire 4 + Flux + Tailwind v4 |
 
-### Dependencias de Composer
+### Composer dependencies
 
-| Paquete | Para qué |
+| Package | What for |
 | --- | --- |
-| `smalot/pdfparser` | Extraer texto de PDFs. Es el equivalente de `pdfplumber` |
-| `ext-dom` / `ext-libxml` | Parseo del XML (viene con PHP) |
-| `ext-zip` | Empaquetar la descarga de la web |
-| `ext-intl` | Normalización Unicode para quitar acentos |
+| `smalot/pdfparser` | Extracting text from PDFs. The equivalent of `pdfplumber` — **Built as:** `prinsfrank/pdfparser` |
+| `ext-dom` / `ext-libxml` | XML parsing (ships with PHP) |
+| `ext-zip` | Packaging the web download |
+| `ext-intl` | Unicode normalization for stripping accents |
 | `pestphp/pest` (dev) | Tests |
 
-> **Nota sobre `smalot/pdfparser`:** no es idéntico a `pdfplumber` en cómo
-> ordena el texto. La extracción debe estar aislada detrás de una interfaz
-> (`PdfTextExtractor`) para poder cambiar de librería sin tocar la lógica de
-> validación, y los tests deben poder inyectar texto directamente.
+> **Note on the PDF parser:** it is not identical to `pdfplumber` in how it
+> orders text. Extraction must be isolated behind an interface
+> (`PdfTextExtractor`) so the library can be swapped without touching the
+> validation logic, and the tests must be able to inject text directly.
 
 ---
 
-## 3. Estructura de archivos objetivo
+## 3. Target file structure
+
+The layout below is what was originally specified. **Built as:** the classes were
+given English names; the mapping is in the right-hand column.
 
 ```
 app/
 ├── Cfdi/
 │   ├── Data/
-│   │   ├── CfdiData.php            # DTO readonly con los datos extraídos
-│   │   └── ResultadoArchivo.php    # DTO de una fila del resumen
+│   │   ├── CfdiData.php            # readonly DTO with the extracted data
+│   │   └── FileResult.php          # DTO for one row of the summary
 │   ├── Exceptions/
-│   │   └── CfdiRechazadoException.php
+│   │   └── CfdiRejectedException.php
 │   ├── Parsing/
-│   │   ├── XmlCfdiParser.php       # fuente de verdad, confianza alta
-│   │   ├── PdfCfdiParser.php       # fallback, confianza baja
-│   │   ├── PdfTextExtractor.php    # interfaz
-│   │   └── SmalotPdfTextExtractor.php
+│   │   ├── XmlCfdiParser.php       # source of truth, high confidence
+│   │   ├── PdfCfdiParser.php       # fallback, low confidence
+│   │   ├── PdfTextExtractor.php    # interface
+│   │   └── PrinsFrankPdfTextExtractor.php
 │   ├── Naming/
-│   │   ├── Sanitizador.php         # quitarAcentos / sanitizar
-│   │   ├── SugeridorDeNombre.php   # razón social -> nombre corto
-│   │   ├── ResolvedorDeContraparte.php
-│   │   └── ConstructorDeNombre.php # aplica la plantilla
-│   ├── ProcesadorDeCfdis.php       # orquestador: agrupa, valida, renombra
-│   └── AgrupadorDeArchivos.php     # PDF+XML por stem
+│   │   ├── NameSanitizer.php       # stripAccents / sanitize
+│   │   ├── CounterpartyNameSuggester.php   # legal name -> short name
+│   │   ├── CounterpartyResolver.php
+│   │   └── FileNameBuilder.php     # applies the template
+│   ├── CfdiProcessor.php           # orchestrator: groups, validates, renames
+│   └── FileGrouper.php             # PDF+XML by stem
 ├── Console/Commands/
 │   └── CfdiAutofileCommand.php     # php artisan cfdi:autofile
-├── Http/Controllers/
-│   ├── ProcesamientoController.php
-│   ├── ContraparteController.php
-│   └── AjustesController.php
+├── Livewire/                       # Built as: Livewire components, not controllers
+│   ├── RunCfdis.php
+│   ├── BrowseDocuments.php
+│   ├── ManageCounterparties.php
+│   └── EditSettings.php
 ├── Models/
-│   ├── Ajuste.php
-│   └── Contraparte.php
+│   ├── Setting.php
+│   └── Counterparty.php
 └── Support/
-    └── Ajustes.php                 # fachada tipada sobre la tabla ajustes
+    └── AppSettings.php             # typed facade over the settings table
 ```
 
 ---
 
-## 4. Modelo de datos (SQLite)
+## 4. Data model (SQLite)
 
-### `ajustes` (key-value, una sola fila por clave)
+### `settings` (key-value, one row per key)
 
 ```php
-Schema::create('ajustes', function (Blueprint $table) {
+Schema::create('settings', function (Blueprint $table) {
     $table->id();
-    $table->string('clave')->unique();
-    $table->text('valor')->nullable();
+    $table->string('key')->unique();
+    $table->text('value')->nullable();
     $table->timestamps();
 });
 ```
 
-Claves usadas:
+Keys in use:
 
-| Clave | Contenido | Default |
+| Key | Contents | Default |
 | --- | --- | --- |
-| `rfc` | RFC propio, siempre guardado en MAYÚSCULAS y sin espacios | `null` |
-| `plantilla` | Plantilla de nombre | `{fecha} {tipo} {contraparte} - {monto}{nota_credito}` |
+| `rfc` | Your own RFC, always stored UPPERCASED and trimmed | `null` |
+| `template` | File-name template | `{date} {type} {counterparty} - {amount}{credit_note}` |
 
-El helper `App\Support\Ajustes` expone `rfc()`, `setRfc(string)`,
-`plantilla()`, `setPlantilla(string)`. `setRfc` aplica `trim` + `strtoupper`.
+The `App\Support\AppSettings` helper exposes `rfc()`, `setRfc(string)`,
+`template()`, `setTemplate(string)`. `setRfc` applies `trim` + `strtoupper`.
 
-### `contrapartes` (cache de RFC -> nombre corto)
+### `counterparties` (cache of RFC -> short name)
 
 ```php
-Schema::create('contrapartes', function (Blueprint $table) {
+Schema::create('counterparties', function (Blueprint $table) {
     $table->id();
     $table->string('rfc')->unique();
-    $table->string('nombre');
-    $table->string('razon_social')->nullable(); // informativo, la del CFDI
+    $table->string('name');
+    $table->string('legal_name')->nullable(); // informative, the one from the CFDI
     $table->timestamps();
 });
 ```
 
-`rfc` siempre en MAYÚSCULAS. `nombre` siempre pasa por `Sanitizador::sanitizar()`
-antes de guardarse.
+`rfc` is always UPPERCASED. `name` always goes through `NameSanitizer::sanitize()`
+before being stored.
 
-> No se crea tabla de historial ni de facturas procesadas. Está fuera de alcance.
+> No history table and no table of processed invoices is created. That is out of
+> scope. **Built as:** superseded — `runs`, `run_files` and `documents` were added
+> so the web could survive a browser refresh and keep an archive of processed
+> CFDIs. See `.ai/rules/documents.md`.
 
 ---
 
-## 5. El DTO `CfdiData`
+## 5. The `CfdiData` DTO
 
 ```php
 final class CfdiData
 {
     public function __construct(
-        public ?string $fecha = null,             // ISO tal cual viene: "2026-02-14T11:32:05"
-        public ?string $total = null,             // string crudo: "11600.00"
-        public ?string $tipoComprobante = null,   // "I" | "E" | "N" | ... | null
-        public ?string $emisorRfc = null,
-        public ?string $emisorNombre = null,
-        public ?string $receptorRfc = null,
-        public ?string $receptorNombre = null,
+        public ?string $date = null,              // ISO exactly as it comes: "2026-02-14T11:32:05"
+        public ?string $total = null,             // raw string: "11600.00"
+        public ?string $invoiceType = null,       // "I" | "E" | "N" | ... | null
+        public ?string $issuerRfc = null,
+        public ?string $issuerName = null,
+        public ?string $recipientRfc = null,
+        public ?string $recipientName = null,
         public ?string $uuid = null,
-        public ?string $uuidSustituido = null,
-        public string $confianza = 'alta',        // 'alta' (xml) | 'baja' (pdf)
-        public ?string $fuente = null,            // 'xml' | 'pdf'
-        public array $advertencias = [],
+        public ?string $replacedUuid = null,
+        public Confidence $confidence = Confidence::High,  // High (xml) | Low (pdf)
+        public ?SourceFormat $source = null,               // Xml | Pdf
+        public array $warnings = [],
     ) {}
 
-    public function esNotaCredito(): bool
+    public function isCreditNote(): bool
     {
-        return $this->tipoComprobante === 'E';
+        return $this->invoiceType === 'E';
     }
 }
 ```
 
 ---
 
-## 6. Parseo y validación de XML (`XmlCfdiParser`)
+## 6. XML parsing and validation (`XmlCfdiParser`)
 
-Confianza `alta`, fuente `xml`.
+Confidence `High`, source `Xml`.
+
+The node and attribute names below stay in Spanish on purpose: they are the SAT's
+CFDI schema, not app vocabulary.
 
 ### Namespaces
 
@@ -181,128 +196,123 @@ const NS_CFDI_4 = 'http://www.sat.gob.mx/cfd/4';
 const NS_TFD    = 'http://www.sat.gob.mx/TimbreFiscalDigital';
 ```
 
-### Algoritmo
+### Algorithm
 
-1. Cargar el XML. Si está mal formado, lanzar
-   `CfdiRechazadoException("Este XML no es un CFDI valido: XML mal formado (…).")`.
-   Usar `libxml_use_internal_errors(true)` y no dejar que PHP emita warnings.
-2. **El nodo raíz debe llamarse `Comprobante`** (nombre local, ignorando el
-   prefijo) **y estar en el namespace** `NS_CFDI_3` o `NS_CFDI_4`. Si no:
-   `"Este XML no es un CFDI valido: el nodo raiz no es cfdi:Comprobante en el namespace de CFDI 3.3 o 4.0."`
-3. Leer del nodo raíz los atributos `Fecha`, `Total`, `TipoDeComprobante`.
-4. Buscar el **hijo directo** con nombre local `Emisor` → atributos `Rfc`, `Nombre`.
-5. Buscar el **hijo directo** con nombre local `Receptor` → atributos `Rfc`, `Nombre`.
-6. Dentro del hijo directo `Complemento`, recorrer **todos los descendientes**
-   buscando el primero cuyo nombre local sea `TimbreFiscalDigital` **y** cuyo
-   namespace sea `NS_TFD`. De ahí sale `uuid` (atributo `UUID`, **tal cual, sin
-   cambiar mayúsculas**).
-7. Si existe el hijo directo `CfdiRelacionados` **con** `TipoRelacion="04"`,
-   tomar el `UUID` de su hijo `CfdiRelacionado` → `uuidSustituido`, y **agregar
-   una advertencia** (no se rechaza):
-   `"sustituye al CFDI {uuid} (TipoRelacion 04)"`.
+1. Load the XML. If it is malformed, throw
+   `CfdiRejectedException` with `cfdi.rejected.malformed_xml`.
+   Use `libxml_use_internal_errors(true)` and do not let PHP emit warnings.
+2. **The root node must be named `Comprobante`** (local name, ignoring the
+   prefix) **and live in the namespace** `NS_CFDI_3` or `NS_CFDI_4`. Otherwise:
+   `cfdi.rejected.not_a_cfdi`.
+3. Read the `Fecha`, `Total` and `TipoDeComprobante` attributes off the root node.
+4. Find the **direct child** with local name `Emisor` → `Rfc`, `Nombre` attributes.
+5. Find the **direct child** with local name `Receptor` → `Rfc`, `Nombre` attributes.
+6. Inside the direct child `Complemento`, walk **all descendants** looking for the
+   first one whose local name is `TimbreFiscalDigital` **and** whose namespace is
+   `NS_TFD`. That yields `uuid` (the `UUID` attribute, **verbatim, without
+   changing its case**).
+7. If the direct child `CfdiRelacionados` exists **with** `TipoRelacion="04"`,
+   take the `UUID` of its `CfdiRelacionado` child → `replacedUuid`, and **add a
+   warning** (it is not a rejection): `cfdi.warning.replaces`.
 
-### Rechazos, en este orden exacto
+### Rejections, in this exact order
 
-| Condición | Mensaje |
+| Condition | Message key |
 | --- | --- |
-| falta `Fecha` | `CFDI incompleto: falta el atributo Fecha en el Comprobante.` |
-| falta `Total` | `CFDI incompleto: falta el atributo Total en el Comprobante.` |
-| falta RFC del Emisor | `CFDI incompleto: falta el RFC del Emisor.` |
-| falta RFC del Receptor | `CFDI incompleto: falta el RFC del Receptor.` |
+| `Fecha` missing | `cfdi.rejected.missing_date` |
+| `Total` missing | `cfdi.rejected.missing_total` |
+| Emisor RFC missing | `cfdi.rejected.missing_issuer_rfc` |
+| Receptor RFC missing | `cfdi.rejected.missing_recipient_rfc` |
 
-> Nota: la búsqueda por nombre local + namespace es intencional. El prefijo del
-> namespace (`cfdi:`, `c:`, ninguno) **no** debe importar. Con `DOMDocument`,
-> comparar `$nodo->localName` y `$nodo->namespaceURI`.
+> Note: looking up by local name + namespace is intentional. The namespace prefix
+> (`cfdi:`, `c:`, none) **must not** matter. With `DOMDocument`, compare
+> `$node->localName` and `$node->namespaceURI`.
 
 ---
 
-## 7. Parseo y validación de PDF (`PdfCfdiParser`)
+## 7. PDF parsing and validation (`PdfCfdiParser`)
 
-Confianza `baja`, fuente `pdf`. Solo se usa **cuando no hay XML** o cuando el XML
-fue rechazado.
+Confidence `Low`, source `Pdf`. Only used **when there is no XML**, or when the
+XML was rejected.
 
-### Expresiones regulares (portadas literalmente, con `/u`)
+### Regular expressions (ported literally, with `/u`)
 
 ```php
-// RFC mexicano: 3 letras (moral) o 4 (física) + 6 dígitos de fecha + 3 de homoclave
+// Mexican RFC: 3 letters (company) or 4 (individual) + 6 date digits + 3 of the homoclave
 const RFC_RE = '/\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/u';
 
 const UUID_RE = '/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/';
 
-// El (?<!sub) evita que "Subtotal: $2,500.00" se confunda con el total
+// The (?<!sub) keeps "Subtotal: $2,500.00" from being read as the total
 const TOTAL_RE = '/(?<!sub)(?<![a-z])(?:gran\s+total|importe\s+total|total)\b\D{0,20}?\$?\s*'
                . '(\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d+\.\d{2})/i';
 
-const FECHA_ISO_RE = '/\b(\d{4}-\d{2}-\d{2})(?:[T ]\d{2}:\d{2}:\d{2})?\b/';
-const FECHA_DMY_RE = '/\b(\d{2})\/(\d{2})\/(\d{4})\b/';
+const DATE_ISO_RE = '/\b(\d{4}-\d{2}-\d{2})(?:[T ]\d{2}:\d{2}:\d{2})?\b/';
+const DATE_DMY_RE = '/\b(\d{2})\/(\d{2})\/(\d{4})\b/';
 ```
 
-### Checklist de validación — el primero que falla es el motivo del rechazo
+### Validation checklist — the first one that fails is the rejection reason
 
-1. **¿Hay texto extraíble?** Si el texto extraído está vacío o solo son espacios:
-   `"Rechazado: el PDF no tiene texto extraible (probablemente es un escaneo o imagen). Consigue el XML o un PDF con texto."`
-2. **¿Hay al menos 2 RFCs distintos con formato válido?** Se busca sobre el texto
-   en MAYÚSCULAS, preservando el orden de aparición y **eliminando duplicados**.
-   Si hay menos de 2:
-   `"Rechazado: se encontraron {n} RFC(s) con formato valido y un CFDI necesita al menos 2 (emisor y receptor)."`
-3. **¿Está timbrado?** Debe aparecer un UUID con guiones **o** la frase
-   `folio fiscal` (case-insensitive). Si no:
-   `"Rechazado: no aparece un UUID ni la frase 'folio fiscal'; el documento no parece estar timbrado ante el SAT."`
-4. **¿Hay un total identificable?** Se toma la **última** coincidencia de
-   `TOTAL_RE` en el texto, no la primera — el total suele venir al final del
-   documento. Si no hay ninguna:
-   `"Rechazado: no se pudo identificar un total en el texto del PDF."`
-5. **¿Hay fecha?** Se intenta primero `FECHA_ISO_RE`; si no, `FECHA_DMY_RE`
-   (`dd/mm/yyyy` → `yyyy-mm-dd`). Si no hay ninguna:
-   `"Rechazado: no se pudo identificar la fecha de emision en el texto del PDF."`
+1. **Is there extractable text?** If the extracted text is empty or only
+   whitespace: `cfdi.rejected.pdf_no_text`.
+2. **Are there at least 2 distinct, well-formed RFCs?** The search runs over the
+   UPPERCASED text, preserving order of appearance and **removing duplicates**.
+   If there are fewer than 2: `cfdi.rejected.pdf_not_enough_rfcs`.
+3. **Is it stamped?** Either a hyphenated UUID **or** the phrase `folio fiscal`
+   (case-insensitive) must appear. Otherwise: `cfdi.rejected.pdf_not_stamped`.
+4. **Is there an identifiable total?** The **last** match of `TOTAL_RE` in the
+   text is taken, not the first — the total usually comes at the end of the
+   document. If there is none: `cfdi.rejected.pdf_no_total`.
+5. **Is there a date?** `DATE_ISO_RE` is tried first; failing that, `DATE_DMY_RE`
+   (`dd/mm/yyyy` → `yyyy-mm-dd`). If there is none:
+   `cfdi.rejected.pdf_no_date`.
 
-### Si pasa todo
+### If everything passes
 
-- `total` = la captura, **sin comas**.
-- `uuid` = el UUID encontrado **en minúsculas**, o `null` si solo hubo la frase
-  "folio fiscal".
-- `emisorRfc` = primer RFC en orden de aparición, `receptorRfc` = segundo.
-  **Es una heurística y puede estar invertida.**
-- `tipoComprobante` = `null`. **Nunca se adivina.**
-- Se agrega siempre esta advertencia:
-  `"datos extraidos del PDF por heuristica; el orden emisor/receptor puede estar invertido y no se pudo determinar el tipo de comprobante"`
+- `total` = the capture, **without commas**.
+- `uuid` = the UUID found, **lowercased**, or `null` if only the phrase
+  "folio fiscal" was present.
+- `issuerRfc` = the first RFC in order of appearance, `recipientRfc` = the second.
+  **This is a heuristic and it can be the wrong way round.**
+- `invoiceType` = `null`. **It is never guessed.**
+- This warning is always added: `cfdi.warning.pdf_heuristic`.
 
 ---
 
-## 8. Nombres de contraparte
+## 8. Counterparty names
 
-### `Sanitizador::quitarAcentos(string): string`
+### `NameSanitizer::stripAccents(string): string`
 
-1. Reemplaza `ñ` → `n` y `Ñ` → `N` **antes** de normalizar.
-2. Normaliza a NFD y elimina todas las marcas diacríticas (categoría Unicode
-   `Mn`). Con `intl`: `Normalizer::normalize($t, Normalizer::FORM_D)` y luego
+1. Replaces `ñ` → `n` and `Ñ` → `N` **before** normalizing.
+2. Normalizes to NFD and removes every diacritical mark (Unicode category `Mn`).
+   With `intl`: `Normalizer::normalize($t, Normalizer::FORM_D)` and then
    `preg_replace('/\p{Mn}/u', '', $t)`.
 
-### `Sanitizador::sanitizar(string): string`
+### `NameSanitizer::sanitize(string): string`
 
-En este orden:
+In this order:
 
-1. `quitarAcentos`
-2. Elimina `,` y `$`
-3. Reemplaza `/ \ : * ? " < > |` por `-`
-4. Colapsa runs de espacios en blanco a un solo espacio
-5. `trim` de espacios, y luego `trim` de puntos en ambos extremos
+1. `stripAccents`
+2. Removes `,` and `$`
+3. Replaces `/ \ : * ? " < > |` with `-`
+4. Collapses runs of whitespace into a single space
+5. `trim` of spaces, then `trim` of dots at both ends
 
-### `SugeridorDeNombre::sugerir(?string $razonSocial): string`
+### `CounterpartyNameSuggester::suggest(?string $legalName): string`
 
-Razón social sin forma societaria, máximo 3 palabras, sin acentos.
+Legal name without its legal form, at most 3 words, without accents.
 
-1. Si viene vacía o `null`, regresa `''`.
-2. `quitarAcentos`.
-3. Reemplaza por espacio todo lo que **no** sea letra/dígito/`_`/espacio/`&`/`.`
+1. If it comes in empty or `null`, return `''`.
+2. `stripAccents`.
+3. Replace with a space anything that is **not** a letter/digit/`_`/space/`&`/`.`
    (`preg_replace('/[^\w\s&.]/u', ' ', $t)`).
-4. Para cada palabra: su forma base es la palabra **sin puntos y en MAYÚSCULAS**.
-   Si la base está vacía o está en `FORMAS_SOCIETARIAS`, se descarta. Si no, se
-   conserva la palabra original **sin los puntos de los extremos**.
-5. Si no quedó ninguna palabra, se usan todas las palabras originales.
-6. Regresa las primeras **3** palabras unidas por espacio, con `trim`.
+4. For each word: its base form is the word **without dots and UPPERCASED**. If
+   the base is empty or is in `LEGAL_FORMS`, it is discarded. Otherwise the
+   original word is kept, **without the dots at its ends**.
+5. If no word was left, all the original words are used.
+6. Return the first **3** words joined by a space, trimmed.
 
-#### `FORMAS_SOCIETARIAS` (set exacto, comparado en MAYÚSCULAS)
+#### `LEGAL_FORMS` (exact set, compared UPPERCASED)
 
 ```
 SA, S, A, DE, CV, C, V, SAPI, SAB, SC, AC, SRL, RL, SDE, S.A., S.A, SAS,
@@ -312,312 +322,334 @@ LLC, INC, CORP,
 DEL, LA, LAS, LOS, EL, Y, E
 ```
 
-Los últimos son conectores que no aportan al nombre corto.
+These stay in Spanish: they match the Mexican legal-entity names that arrive in
+the CFDI's `Emisor@Nombre`. The last ones are connectors that add nothing to the
+short name.
 
-Casos de prueba:
+Test cases:
 
-| Entrada | Salida |
+| Input | Output |
 | --- | --- |
 | `SERVICIOS CONTABLES DEL NORTE SA DE CV` | `SERVICIOS CONTABLES NORTE` |
 | `Café Piñón S.A. de C.V.` | `Cafe Pinon` |
 | `TELEFONOS DE MEXICO SAB DE CV` | `TELEFONOS MEXICO` |
 
-### `ResolvedorDeContraparte::resolver(string $rfc, ?string $razonSocial, bool $interactivo): string`
+### `CounterpartyResolver::resolve(?string $rfc, ?string $legalName, CounterpartyNamePrompt $prompt): string`
 
-RFC se normaliza con `trim` + `strtoupper` al entrar.
+The RFC is normalized with `trim` + `strtoupper` on the way in.
 
-1. Si el RFC es **genérico** (`XAXX010101000` o `XEXX010101000`), regresa
-   `"General"` **sin tocar la base de datos**.
-2. Si el RFC ya está en la tabla `contrapartes` con un `nombre` no vacío, lo usa
-   tal cual y **no pregunta nada**.
-3. Calcula `$sugerencia = SugeridorDeNombre::sugerir($razonSocial) ?: $rfc`.
-4. **Modo interactivo:** pide al usuario el nombre mostrando la sugerencia como
-   default. Si el usuario responde vacío (o cancela), se usa la sugerencia.
-   **Modo no interactivo:** usa la sugerencia sin preguntar.
-5. El nombre final pasa por `sanitizar()`; si queda vacío, se usa el RFC.
-6. Se guarda en `contrapartes` y se regresa.
+1. If the RFC is **generic** (`XAXX010101000` or `XEXX010101000`), return
+   `cfdi.generic_counterparty` (`General`) **without touching the database**.
+2. If the RFC is already in the `counterparties` table with a non-empty `name`,
+   use it as-is and **ask nothing**.
+3. Compute `$suggestion = CounterpartyNameSuggester::suggest($legalName) ?: $rfc`.
+4. **Interactive mode:** ask the user for the name, showing the suggestion as the
+   default. If the user answers empty (or cancels), the suggestion is used.
+   **Non-interactive mode:** use the suggestion without asking.
+   **Built as:** the interactive/non-interactive flag was replaced by the
+   `CounterpartyNamePrompt` seam, so the core knows nothing about the terminal.
+5. The final name goes through `sanitize()`; if it comes out empty, the RFC is used.
+6. It is stored in `counterparties` and returned.
 
-En la **web** el paso 4 no es un prompt de terminal: ver §11.
+On the **web**, step 4 is not a terminal prompt: see §11.
 
 ---
 
-## 9. Construcción del nombre final
+## 9. Building the final name
 
-### Plantilla
+### Template
 
-Default: `{fecha} {tipo} {contraparte} - {monto}{nota_credito}`
+Default: `{date} {type} {counterparty} - {amount}{credit_note}`
 
-| Placeholder | Contenido |
+| Placeholder | Contents |
 | --- | --- |
-| `{fecha}` | fecha de emisión en `YYYY-MM-DD` (se corta en la `T`) |
-| `{tipo}` | `I` si tu RFC es el emisor (ingreso), `G` si es el receptor (gasto), `?` si no aparece |
-| `{contraparte}` | nombre corto de la otra parte |
-| `{monto}` | total con **exactamente dos decimales**, sin comas ni `$` |
-| `{uuid}` | folio fiscal (UUID) del timbre, o cadena vacía |
-| `{nota_credito}` | `" (nota de credito)"` (con espacio inicial) si `TipoDeComprobante == "E"`, vacío si no |
+| `{date}` | issue date as `YYYY-MM-DD` (cut at the `T`) |
+| `{type}` | `I` if your RFC is the issuer (income), `G` if it is the recipient (expense), `?` if it does not appear |
+| `{counterparty}` | short name of the other party |
+| `{amount}` | total with **exactly two decimals**, no commas and no `$` |
+| `{uuid}` | tax folio (UUID) of the stamp, or an empty string |
+| `{credit_note}` | `cfdi.credit_note_suffix` (with a leading space) when `TipoDeComprobante == "E"`, empty otherwise |
 
-### Formateo de valores
+The placeholder tokens are the strings the user types, and they are stored inside
+`settings.value` — renaming one is a breaking change that needs a data migration.
+See `.ai/rules/naming.md`.
 
-- **fecha:** `explode('T', $fecha)[0]` + `trim`. Si es `null`, cadena vacía.
-- **monto:** quita `,` y `$`, castea a float, formatea con 2 decimales
-  (`number_format($v, 2, '.', '')`). Si no es numérico, aplica `sanitizar()` al
-  valor crudo. Si es `null`, cadena vacía.
-- **uuid:** el valor tal cual o cadena vacía.
+### Value formatting
 
-### Reglas de sustitución
+- **date:** `explode('T', $date)[0]` + `trim`. If `null`, an empty string.
+- **amount:** strip `,` and `$`, cast to float, format with 2 decimals. Use
+  `sprintf('%.2F')` and **not** `number_format()`: Python formats the exact binary
+  double (banker's rounding) while `number_format` rounds the decimal
+  representation up, and they differ on ties (`2.675` → `2.67` vs `2.68`). If the
+  value is not numeric, `sanitize()` is applied to the raw value. If `null`, an
+  empty string.
+- **uuid:** the value as-is, or an empty string.
 
-- Un placeholder **desconocido se deja literal** en la salida. Es decir,
-  `{folio}` queda como el texto `{folio}`, no revienta ni desaparece.
-  (En Python es `str.format_map` con un dict que implementa `__missing__`.)
-- Después de sustituir, **todo el nombre pasa por `sanitizar()`**.
-- Si el resultado queda vacío, se usa `"cfdi"`.
-- Se le concatena la extensión original **en minúsculas**, incluyendo el punto
+### Substitution rules
+
+- An **unknown placeholder is left literal** in the output. That is, `{folio}`
+  comes out as the text `{folio}`; it neither blows up nor disappears.
+  (In Python this is `str.format_map` with a dict implementing `__missing__`.)
+- After substitution, **the whole name goes through `sanitize()`**.
+- If the result is empty, `"cfdi"` is used.
+- The original extension is appended **lowercased**, dot included
   (`.pdf` / `.xml`).
 
-Casos de prueba:
+Test cases:
 
-| datos | tipo | contraparte | plantilla | resultado |
+| data | type | counterparty | template | result |
 | --- | --- | --- | --- | --- |
-| fecha `2026-02-14T11:32:05`, total `11600.00`, tipo `I` | `G` | `Contador` | default | `2026-02-14 G Contador - 11600.00.pdf` |
-| fecha `2026-03-01T09:00:00`, total `$1,160.00`, tipo `E` | `G` | `Cafe Piñón` | default | `2026-03-01 G Cafe Pinon - 1160.00 (nota de credito).xml` |
+| date `2026-02-14T11:32:05`, total `11600.00`, type `I` | `G` | `Contador` | default | `2026-02-14 G Contador - 11600.00.pdf` |
+| date `2026-03-01T09:00:00`, total `$1,160.00`, type `E` | `G` | `Cafe Piñón` | default | `2026-03-01 G Cafe Pinon - 1160.00 (credit note).xml` |
+
+The second one is locale-dependent: under `es` the suffix is ` (nota de credito)`,
+which is what the app produced before the codebase moved to English.
 
 ---
 
-## 10. El orquestador (`ProcesadorDeCfdis`)
+## 10. The orchestrator (`CfdiProcessor`)
 
-Es el corazón compartido por el comando Artisan y la web. No debe conocer ni la
-terminal ni HTTP.
+It is the core shared by the Artisan command and the web. It must know nothing
+about the terminal or HTTP.
 
-### Entrada
+### Input
 
 ```php
-final class OpcionesDeProceso
+final class ProcessOptions
 {
     public function __construct(
-        public string $miRfc,
-        public string $plantilla,
-        public string $carpetaSalida,
-        public bool $mover = false,        // false = copia
-        public bool $interactivo = true,
+        public string $myRfc,
+        public string $template,
+        public string $outputDirectory,
+        public bool $move = false,        // false = copy
     ) {}
 }
 ```
 
-### Agrupación
+**Built as:** the `interactive` flag was dropped; interaction goes through the
+`CounterpartyNamePrompt` passed to `process()`.
 
-Se agrupa por **(carpeta absoluta resuelta, nombre base sin extensión)**. Cada
-grupo tiene un slot `xml` y un slot `pdf`. Se preserva el orden de primera
-aparición.
+### Grouping
 
-### Por cada grupo
+Grouping is by **(resolved absolute folder, base name without extension)**. Each
+group has an `xml` slot and a `pdf` slot. The order of first appearance is
+preserved.
 
-1. Si hay XML, se intenta `XmlCfdiParser`. Si lanza, se guarda el motivo.
-2. Si no hubo datos **y** hay PDF, se intenta `PdfCfdiParser`. Si tiene éxito,
-   **se limpia el motivo anterior**. Si falla, se conserva el **primer** motivo
-   (el del XML si lo hubo).
-3. Si no hubo datos, se emite una fila `RECHAZADO` **por cada archivo del grupo**
-   (XML y PDF), con ese motivo, y **ninguno de los dos se copia ni se mueve**.
-4. Si hubo datos:
-   - Se resuelve la contraparte (§8).
-   - Se calcula la letra de tipo (§10.1). Si es `?`, se agrega la advertencia
-     `"tu RFC {MI_RFC} no aparece como emisor ni receptor"`.
-   - Para **cada** archivo del grupo (xml y/o pdf, en ese orden): se construye el
-     nombre, se resuelve la colisión de destino, se copia o mueve, y se emite una
-     fila con estado `REVISAR` si `confianza === 'baja'`, o `OK` si no. La nota es
-     `"copiado"` o `"movido"`.
-   - Las advertencias del CFDI se acumulan prefijadas con el nombre del archivo.
+### For each group
 
-### 10.1 Letra de tipo
+1. If there is an XML, try `XmlCfdiParser`. If it throws, keep the reason.
+2. If there is no data **and** there is a PDF, try `PdfCfdiParser`. On success,
+   **the previous reason is discarded**. On failure, the **first** reason is kept
+   (the XML's, if there was one).
+3. If there was no data, emit a rejected row **for every file in the group** (XML
+   and PDF) with that reason, and **neither of them is copied or moved**.
+4. If there was data:
+   - Resolve the counterparty (§8).
+   - Compute the type letter (§10.1). If it is `?`, add the warning
+     `cfdi.warning.rfc_not_a_party`.
+   - For **each** file in the group (xml and/or pdf, in that order): build the
+     name, resolve the destination collision, copy or move, and emit a row with
+     status `Review` when confidence is `Low`, or `Ok` otherwise. The note is
+     `cfdi.action.copied` or `cfdi.action.moved`.
+   - The CFDI's warnings are accumulated, prefixed with the file name.
+
+### 10.1 Type letter
 
 ```
-I  si emisorRfc (upper) === miRfc (upper)   // ingreso: yo emití
-G  si receptorRfc (upper) === miRfc (upper) // gasto: yo recibí
-?  en cualquier otro caso
+I  if issuerRfc (upper) === myRfc (upper)     // income: I issued it
+G  if recipientRfc (upper) === myRfc (upper)  // expense: I received it
+?  in any other case
 ```
 
-### 10.2 Elección de la contraparte
+### 10.2 Choosing the counterparty
 
-Si `emisorRfc === miRfc`, la contraparte es el **receptor** (`receptorRfc`,
-`receptorNombre`). En **cualquier otro caso** (incluido `?`), es el **emisor**.
+If `issuerRfc === myRfc`, the counterparty is the **recipient** (`recipientRfc`,
+`recipientName`). In **any other case** (including `?`), it is the **issuer**.
 
-### 10.3 Colisión de nombres en el destino
+### 10.3 Name collisions at the destination
 
-Si `nombre.ext` ya existe en la carpeta de salida, se prueba
-`nombre (2).ext`, `nombre (3).ext`, … hasta encontrar uno libre.
-El sufijo va **antes** de la extensión y lleva espacio: `" (2)"`.
+If `name.ext` already exists in the output folder, try `name (2).ext`,
+`name (3).ext`, … until a free one is found. The suffix goes **before** the
+extension and carries a space: `" (2)"`.
 
-### 10.4 Recolección de archivos (solo aplica al comando)
+### 10.4 File collection (command only)
 
-- Se aceptan **solo** `.pdf` y `.xml` (comparando la extensión en minúsculas).
-- Un archivo que no existe → fila `RECHAZADO` con `"no existe."`.
-- Una carpeta pasada como archivo suelto → `"es una carpeta (usa --dir)."`.
-- Otra extensión → `"extension no soportada (solo .pdf y .xml)."`.
-- `--dir` que no es carpeta → `"--dir {ruta}: no es una carpeta."`.
-- `--dir` recorre la carpeta **ordenada alfabéticamente y no recursiva**.
-- Se deduplica por ruta absoluta resuelta, preservando el orden.
+- Only `.pdf` and `.xml` are accepted (comparing the extension lowercased).
+- A file that does not exist → rejected row with `cfdi.collection.missing`.
+- A folder passed as a single file → `cfdi.collection.is_directory`.
+- Any other extension → `cfdi.collection.unsupported_extension`.
+- A `--dir` that is not a folder → `cfdi.collection.not_a_directory`.
+- `--dir` walks the folder **alphabetically sorted and non-recursively**.
+- Deduplication is by resolved absolute path, preserving order.
 
-### Salida
+### Output
 
 ```php
-final class ResultadoDeProceso
+final class ProcessResult
 {
-    /** @var ResultadoArchivo[] */
-    public array $filas;          // estado, original, nuevoNombre|null, nota
+    /** @var FileResult[] */
+    public array $rows;             // status, original, newName|null, note
     /** @var string[] */
-    public array $advertencias;
-    public int $totalArchivos;    // archivos válidos recolectados
-    public int $okArchivos;       // efectivamente copiados/movidos
-    public string $carpetaSalida; // ruta absoluta
+    public array $warnings;
+    public int $totalFiles;         // valid files collected
+    public int $okFiles;            // actually copied/moved
+    public string $outputDirectory; // absolute path
 }
 ```
 
-Estados posibles: `OK`, `REVISAR`, `RECHAZADO`.
+Possible statuses: `Ok`, `Review`, `Rejected`. Their backing values are `ok`,
+`review` and `rejected`; the displayed label comes from `cfdi.status.*`, so under
+the `es` locale they still read `OK`, `REVISAR` and `RECHAZADO`.
 
 ---
 
-## 11. Interfaz web
+## 11. Web interface
 
-Rutas (todas sin auth, la app es local):
+Routes (all without auth, the app is local). **Built as:** the screens became
+Livewire full-page components registered with `Route::livewire()`, so the `POST`
+endpoints below are component actions instead.
 
-| Método | Ruta | Qué hace |
+| Method | Route | What it does |
 | --- | --- | --- |
-| `GET` | `/` | Pantalla principal: dropzone + estado de la config |
-| `POST` | `/procesar` | Sube archivos, los analiza y **decide si hace falta preguntar** |
-| `POST` | `/contrapartes/confirmar` | Recibe los nombres de las contrapartes nuevas y ejecuta el proceso |
-| `GET` | `/descargar/{corrida}` | Descarga el ZIP con los archivos renombrados |
-| `GET` | `/ajustes` | Formulario de RFC y plantilla |
-| `POST` | `/ajustes` | Guarda RFC y plantilla |
-| `GET` | `/contrapartes` | Lista de contrapartes cacheadas |
-| `PATCH` | `/contrapartes/{contraparte}` | Renombra una contraparte |
-| `DELETE` | `/contrapartes/{contraparte}` | Borra una contraparte del cache |
+| `GET` | `/` | Main screen: dropzone + config status |
+| `GET` | `/documents` | The archive of processed CFDIs |
+| `GET` | `/settings` | RFC and template form |
+| `GET` | `/counterparties` | List of cached counterparties |
+| `GET` | `/download/{run}` | Downloads the ZIP with the renamed files (signed) |
+| `GET` | `/documents/{document}/download` | Downloads one archived CFDI (signed) |
 
-### Flujo de subida — dos fases
+### Upload flow — two phases
 
-La web no tiene un prompt de terminal, así que el paso interactivo de §8.4 se
-resuelve con un formulario intermedio:
+The web has no terminal prompt, so the interactive step of §8.4 is resolved with
+an intermediate form:
 
-1. **Fase A (analizar).** Se suben los archivos a un directorio temporal
-   (`storage/app/corridas/{uuid}/entrada`). Se parsean **sin copiar ni renombrar
-   nada** y se recolectan los RFCs de contraparte que **no** están en la tabla.
-2. Si hay RFCs nuevos, se muestra un formulario con una fila por RFC: el RFC, la
-   razón social del CFDI y un input **precargado con la sugerencia automática**.
-   El usuario puede editar cada uno.
-3. **Fase B (procesar).** Se guardan esas contrapartes y se corre el
-   `ProcesadorDeCfdis` en **modo no interactivo** — para entonces ya no queda
-   nada que preguntar. La salida va a
-   `storage/app/corridas/{uuid}/salida`.
-4. Si no había RFCs nuevos, la fase A encadena directo a la fase B.
+1. **Phase A (analyze).** The files are uploaded to a temporary directory
+   (`storage/app/runs/{uuid}/input`). They are parsed **without copying or
+   renaming anything**, and the counterparty RFCs that are **not** in the table
+   are collected.
+2. If there are new RFCs, a form is shown with one row per RFC: the RFC, the
+   legal name from the CFDI, and an input **preloaded with the automatic
+   suggestion**. The user can edit each one.
+3. **Phase B (process).** Those counterparties are saved and `CfdiProcessor` runs
+   with a prompt that asks nothing — by then there is nothing left to ask. The
+   output goes to `storage/app/runs/{uuid}/output`.
+4. If there were no new RFCs, phase A chains straight into phase B.
 
-En la web:
+On the web:
 
-- Siempre se **copia**, nunca se mueve (los originales son subidas temporales).
-- El resultado se muestra como una tabla HTML con las mismas cuatro columnas —
-  `Estado`, `Original`, `Nuevo nombre`, `Nota` — con el estado codificado por
-  color (`OK` verde, `REVISAR` ámbar, `RECHAZADO` rojo), las advertencias
-  listadas debajo, y el conteo `X/Y procesados correctamente.`
-- Botón **Descargar ZIP** con todos los archivos renombrados. Los rechazados
-  **no** van en el ZIP.
-- Validación de subida: solo `.pdf` y `.xml`, y un tope razonable de tamaño por
-  archivo. Un archivo con otra extensión aparece como `RECHAZADO` en la tabla,
-  no como error de validación de Laravel.
+- It always **copies**, never moves (the originals are temporary uploads).
+- The result is shown as an HTML table with the same four columns — `Status`,
+  `Original`, `New name`, `Note` — with the status color-coded (`Ok` green,
+  `Review` amber, `Rejected` red), the warnings listed underneath, and the
+  `X/Y processed successfully.` count.
+- A **Download ZIP** button with all the renamed files. Rejected files are **not**
+  in the ZIP.
+- Upload validation: only `.pdf` and `.xml`, and a reasonable per-file size cap.
+  A file with any other extension shows up as a rejected row in the table, not as
+  a Laravel validation error.
 
-### Limpieza
+### Cleanup
 
-Las corridas viejas en `storage/app/corridas/` se borran con un comando
-`php artisan cfdi:limpiar` (por ejemplo, las de más de 24 horas). No hace falta
-scheduler.
+Old runs under `storage/app/runs/` are deleted with a `php artisan cfdi:clean`
+command (for example, those older than 24 hours). No scheduler is needed.
 
 ---
 
-## 12. Comando Artisan
+## 12. Artisan command
 
-Debe ser un puerto 1:1 del CLI de Python.
+It must be a 1:1 port of the Python CLI.
 
 ```
-php artisan cfdi:autofile [archivos...]
-    {--dir=}            Procesa una carpeta completa (no recursivo)
-    {--o|output=}       Carpeta de salida (default ./Renombradas)
-    {--move}            Mueve en vez de copiar
-    {--no-interactivo}  No pregunta nada; usa sugerencias automáticas
-    {--rfc=}            RFC propio para esta corrida (no lo guarda)
-    {--template=}       Plantilla para esta corrida (no la guarda)
-    {--set-rfc=}        Guarda tu RFC y termina
-    {--set-template=}   Guarda la plantilla default y termina
+php artisan cfdi:autofile [files...]
+    {--dir=}             Process a whole folder (not recursive)
+    {--o|output=}        Output folder (default ./Renamed)
+    {--move}             Move instead of copying
+    {--no-interactive}   Ask nothing; use the automatic suggestions
+    {--rfc=}             Your own RFC for this run (not saved)
+    {--template=}        Template for this run (not saved)
+    {--set-rfc=}         Save your RFC and exit
+    {--set-template=}    Save the default template and exit
 ```
 
-### Orden de ejecución
+The flag names are the CLI contract and stay literal; the help text after each
+` : ` is translated and lives in `lang/{locale}/console.php`.
 
-1. Si viene `--set-rfc`: guarda, imprime `RFC guardado: {RFC}`, sale con **0**.
-2. Si viene `--set-template`: guarda, imprime `Plantilla guardada: {plantilla}`,
-   sale con **0**.
-3. Si no hay archivos **ni** `--dir`: imprime la ayuda y sale con **1**.
-4. Resuelve el RFC: `--rfc` gana sobre el guardado en `ajustes`.
-   - Si no hay ninguno y **sí** es interactivo, lo pregunta
-     (`Tu RFC (se guarda para la proxima): `) y **lo guarda**.
-   - Si no hay ninguno y **no** es interactivo:
-     `Error: no hay RFC configurado. Usa --set-rfc o --rfc.` a **stderr**, sale con **1**.
-   - Si el usuario no contesta nada:
-     `Error: se necesita tu RFC para saber quien es la contraparte.` a stderr, sale con **1**.
-5. Resuelve la plantilla: `--template` > `ajustes.plantilla` > default.
-6. Resuelve la salida: `--output` > `./Renombradas` (relativa al CWD).
-7. Recolecta (§10.4). Si no quedó ningún archivo procesable: imprime la tabla de
-   errores si la hay, luego `No hay archivos PDF/XML que procesar.` y sale con **1**.
-8. Procesa, imprime `Salida: {ruta absoluta}`, la tabla, las advertencias y el
-   conteo.
+### Order of execution
 
-### Códigos de salida
+1. If `--set-rfc` is given: save it, print `console.autofile.rfc_saved`, exit **0**.
+2. If `--set-template` is given: save it, print `console.autofile.template_saved`,
+   exit **0**.
+3. If there are no files **and** no `--dir`: print the help and exit **1**.
+4. Resolve the RFC: `--rfc` beats the one stored in `settings`.
+   - If there is none and it **is** interactive, ask for it
+     (`console.autofile.ask_rfc`) and **store it**.
+   - If there is none and it is **not** interactive:
+     `console.autofile.no_rfc_configured` to **stderr**, exit **1**.
+   - If the user answers nothing: `console.autofile.rfc_required` to stderr,
+     exit **1**.
+5. Resolve the template: `--template` > `settings.template` > default.
+6. Resolve the output: `--output` > `cfdi.default_output_directory` (relative to
+   the CWD).
+7. Collect (§10.4). If no processable file is left: print the error table if there
+   is one, then `console.autofile.nothing_to_process`, and exit **1**.
+8. Process, print `console.autofile.output_directory`, the table, the warnings and
+   the count.
 
-| Código | Cuándo |
+### Exit codes
+
+| Code | When |
 | --- | --- |
-| `0` | todos los archivos se procesaron correctamente |
-| `2` | hubo al menos un rechazo (`okArchivos !== totalArchivos`) |
-| `1` | error de uso: sin argumentos, sin RFC, o nada que procesar |
+| `0` | every file was processed successfully |
+| `2` | there was at least one rejection (`okFiles !== totalFiles`) |
+| `1` | usage error: no arguments, no RFC, or nothing to process |
 
-### La tabla
+### The table
 
-Se usa `$this->table()` de Laravel con las columnas `Estado`, `Original`,
-`Nuevo nombre`, `Nota`. El nombre nuevo de un rechazado es `—` (guion largo).
+Laravel's `$this->table()` is used, with the `Status`, `Original`, `New name` and
+`Note` columns. The new name of a rejected file is `—` (em dash).
 
-> El Python trae un renderizador de tablas propio (`render_tabla`) que ajusta
-> anchos al ancho de la terminal y parte celdas largas en varias líneas. **Eso no
-> se porta**: la tabla de Symfony Console que usa Laravel ya resuelve el mismo
-> problema. El test correspondiente (`test_cli_imprime_tabla_con_antes_y_despues`)
-> se porta solo en la parte que verifica que aparezcan los encabezados y los
-> nombres de archivo, no la geometría de los bordes.
+> The Python has its own table renderer (`render_tabla`) that fits widths to the
+> terminal and wraps long cells across several lines. **That is not ported:**
+> Symfony Console's table, which Laravel uses, already solves the same problem.
+> The corresponding test (`test_cli_imprime_tabla_con_antes_y_despues`) is ported
+> only in the part that checks that the headers and the file names show up, not
+> the geometry of the borders.
 
-### Advertencias
+### Warnings
 
-Se imprimen bajo un encabezado `Advertencias:`, una por línea, con el formato
-`⚠ {archivo}: {texto}`.
+They are printed under a `console.autofile.warnings` heading, one per line, in the
+format `  ⚠ {file}: {text}` — two leading spaces. **That format is the contract**;
+the wording is translated. See `.ai/rules/commands.md`.
 
 ---
 
-## 13. Tests (Pest) — criterio de aceptación
+## 13. Tests (Pest) — acceptance criteria
 
-Se portan los cuatro archivos de test del Python. **La suite debe pasar completa
-antes de dar la migración por terminada.**
+The four Python test files are ported. **The suite must pass in full before the
+migration can be called done.**
 
-### `tests/Unit/XmlCfdiParserTest.php` (de `test_parser.py`)
+### `tests/Unit/XmlCfdiParserTest.php` (from `test_parser.py`)
 
-- Extrae todos los campos de un CFDI 4.0 (fixture `ejemplo_cfdi.xml`): fecha
-  `2026-02-14T11:32:05`, total `11600.00`, tipo `I`, emisor `AAA010101AAA` /
-  `SERVICIOS CONTABLES DEL NORTE SA DE CV`, receptor `BBBB010101BBB` /
-  `RECEPTOR DE PRUEBA`, uuid `A1B2C3D4-E5F6-4789-ABCD-1234567890AB`,
-  `uuidSustituido` null, confianza `alta`, `esNotaCredito()` false.
-- Rechaza un XML que no es CFDI (`no_es_cfdi.xml`) con `"no es un CFDI valido"`.
-- Detecta nota de crédito + sustitución (`cfdi_nota_credito.xml`): tipo `E`,
-  `esNotaCredito()` true, `uuidSustituido = 11111111-2222-3333-4444-555555555555`.
-- **Acepta CFDI 3.3**: el mismo fixture con el namespace cambiado a `.../cfd/3`.
-- Rechaza si falta `Fecha` (mensaje contiene `falta el atributo Fecha`).
-- Rechaza si falta `Total` (mensaje contiene `falta el atributo Total`).
-- Rechaza si falta el RFC del Emisor (mensaje contiene `RFC del Emisor`).
+- Extracts every field of a CFDI 4.0 (fixture `example_cfdi.xml`): date
+  `2026-02-14T11:32:05`, total `11600.00`, type `I`, issuer `AAA010101AAA` /
+  `SERVICIOS CONTABLES DEL NORTE SA DE CV`, recipient `BBBB010101BBB` /
+  `RECEPTOR DE PRUEBA`, uuid `A1B2C3D4-E5F6-4789-ABCD-1234567890AB`, `replacedUuid`
+  null, confidence `High`, `isCreditNote()` false.
+- Rejects an XML that is not a CFDI (`not_a_cfdi.xml`) with `not a valid CFDI`.
+- Detects a credit note + replacement (`cfdi_credit_note.xml`): type `E`,
+  `isCreditNote()` true, `replacedUuid = 11111111-2222-3333-4444-555555555555`.
+- **Accepts a CFDI 3.3**: the same fixture with the namespace changed to `.../cfd/3`.
+- Rejects when `Fecha` is missing (message contains `the Fecha attribute is missing`).
+- Rejects when `Total` is missing (message contains `the Total attribute is missing`).
+- Rejects when the Emisor RFC is missing (message contains `Emisor RFC`).
 
-### `tests/Unit/PdfCfdiParserTest.php` (de `test_parser_pdf.py`)
+### `tests/Unit/PdfCfdiParserTest.php` (from `test_parser_pdf.py`)
 
-Se inyecta un `PdfTextExtractor` falso que devuelve texto fijo — no hace falta
-generar PDFs reales, a diferencia del Python.
+A fake `PdfTextExtractor` returning fixed text is injected — no real PDFs need to
+be generated, unlike in the Python.
 
-Texto base de un CFDI válido:
+Base text of a valid CFDI (it stays in Spanish: it stands in for a real invoice
+issued in Mexico, and the heuristics match against that wording):
 
 ```
 FACTURA ELECTRONICA CFDI 4.0
@@ -631,95 +663,97 @@ IVA 16%: $400.00
 Total: $2,900.00
 ```
 
-- Acepta con confianza `baja`, fuente `pdf`, fecha `2026-04-05`,
-  **total `2900.00` (no debe confundir el Subtotal con el Total)**, uuid en
-  minúsculas `7f8e9d0c-1b2a-4c3d-8e5f-0a1b2c3d4e5f`, los dos RFCs presentes,
-  `tipoComprobante === null` (no se inventa), y al menos una advertencia.
-- Rechaza sin texto extraíble → `no tiene texto extraible`.
-- Rechaza con menos de dos RFCs → `al menos 2`.
-- Rechaza sin UUID ni "folio fiscal" → `no parece estar timbrado`.
-- Rechaza sin total → `no se pudo identificar un total`.
-- **Acepta con la frase "Folio fiscal: pendiente" sin UUID**: `uuid === null` y
-  total `150.00`.
+- Accepts with confidence `Low`, source `Pdf`, date `2026-04-05`,
+  **total `2900.00` (it must not confuse the Subtotal with the Total)**, uuid
+  lowercased `7f8e9d0c-1b2a-4c3d-8e5f-0a1b2c3d4e5f`, both RFCs present,
+  `invoiceType === null` (nothing is invented), and at least one warning.
+- Rejects without extractable text → `no extractable text`.
+- Rejects with fewer than two RFCs → `at least 2`.
+- Rejects without a UUID or "folio fiscal" → `does not look stamped`.
+- Rejects without a total → `could not identify a total`.
+- **Accepts the phrase "Folio fiscal: pendiente" without a UUID**: `uuid === null`
+  and total `150.00`.
 
-### `tests/Unit/NamingTest.php` (de `test_naming.py`)
+### Naming tests (from `test_naming.py`)
 
-- `sugerir` quita forma societaria y limita a 3 palabras (los 3 casos de §8).
-- RFC genérico (`XAXX010101000`, `XEXX010101000`) → `General`.
-- No interactivo usa la sugerencia **y la persiste** en `contrapartes`.
-- Si el RFC ya está cacheado, **no pregunta** aunque sea interactivo.
-- Interactivo guarda la respuesta del usuario.
-- `construirNombre` con la plantilla default → `2026-02-14 G Contador - 11600.00.pdf`.
-- Nota de crédito + sanitizado → `2026-03-01 G Cafe Pinon - 1160.00 (nota de credito).xml`,
-  y el resultado no contiene `,`, `$` ni `ñ`.
-- Plantilla personalizada con `{uuid}`.
+Split across `tests/Unit/CounterpartyNameSuggesterTest.php`,
+`tests/Unit/NameSanitizerTest.php`, `tests/Unit/FileNameBuilderTest.php` and
+`tests/Feature/CounterpartyResolverTest.php`.
 
-### `tests/Feature/CfdiAutofileCommandTest.php` (de `test_cli.py`)
+- `suggest` strips the legal form and caps at 3 words (the 3 cases from §8).
+- A generic RFC (`XAXX010101000`, `XEXX010101000`) → `General`.
+- Non-interactive uses the suggestion **and persists it** in `counterparties`.
+- If the RFC is already cached, it **does not ask**, even when interactive.
+- Interactive stores the user's answer.
+- `build` with the default template → `2026-02-14 G Contador - 11600.00.pdf`.
+- Credit note + sanitizing → `2026-03-01 G Cafe Pinon - 1160.00 (credit note).xml`,
+  and the result contains no `,`, `$` or `ñ`.
+- The same case under `App::setLocale('es')` still yields ` (nota de credito)`.
+- A custom template with `{uuid}`.
 
-Cada test corre contra una base SQLite en memoria y un directorio temporal.
+### `tests/Feature/CfdiAutofileCommandTest.php` (from `test_cli.py`)
 
-- Copia un CFDI válido, deja el original intacto, código **0**, imprime
-  `1/1 procesados correctamente.`, y crea
+Each test runs against an in-memory SQLite database and a temporary directory.
+
+- Copies a valid CFDI, leaves the original untouched, exit code **0**, prints
+  `1/1 processed successfully.`, and creates
   `2026-02-14 G SERVICIOS CONTABLES NORTE - 11600.00.xml`.
-- Rechaza un XML que no es CFDI: código **2**, imprime `RECHAZADO` y
-  `no es un CFDI valido`, `0/1 procesados correctamente.`, la carpeta de salida
-  queda **vacía** y el original sigue ahí.
-- `--move` saca el original de la carpeta de entrada.
-- Dos copias del mismo CFDI producen
-  `… - 11600.00.xml` y `… - 11600.00 (2).xml`.
-- `--set-rfc bbbb010101bbb` guarda `BBBB010101BBB` (en mayúsculas) y
-  `--set-template` persiste la plantilla.
-- Sin `--output`, la salida cae en `./Renombradas`.
-- La tabla del resumen incluye los cuatro encabezados y los nombres de ambos
-  archivos.
+- Rejects an XML that is not a CFDI: exit code **2**, prints `REJECTED` and
+  `not a valid CFDI`, `0/1 processed successfully.`, the output folder is left
+  **empty**, and the original is still there.
+- `--move` takes the original out of the input folder.
+- Two copies of the same CFDI produce `… - 11600.00.xml` and `… - 11600.00 (2).xml`.
+- `--set-rfc bbbb010101bbb` stores `BBBB010101BBB` (uppercased) and
+  `--set-template` persists the template.
+- Without `--output`, the output lands in `./Renamed`.
+- The summary table includes all four headers and the names of both files.
 
-### `tests/Feature/` — nuevos, propios de la web
+### `tests/Feature/Web/` — new, specific to the web
 
-Estos no existen en el Python. Son el mínimo para dar la web por buena:
+These do not exist in the Python. They are the minimum for calling the web good:
 
-- `POST /procesar` con un CFDI cuya contraparte **ya está cacheada** procesa
-  directo y devuelve la tabla de resultados.
-- `POST /procesar` con una contraparte **nueva** devuelve el formulario
-  intermedio con la sugerencia precargada, y **todavía no** ha escrito nada en
-  la carpeta de salida.
-- `POST /contrapartes/confirmar` guarda el nombre editado por el usuario y
-  produce el archivo con ese nombre.
-- Un archivo rechazado **no** aparece en el ZIP de descarga.
-- `POST /ajustes` guarda el RFC en mayúsculas.
+- Processing a CFDI whose counterparty is **already cached** goes straight through
+  and returns the results table.
+- A **new** counterparty returns the intermediate form with the suggestion
+  preloaded, and **has not yet** written anything into the output folder.
+- Confirming the counterparties stores the name the user edited and produces the
+  file under that name.
+- A rejected file does **not** appear in the download ZIP.
+- Saving the settings stores the RFC uppercased.
 
 ### Fixtures
 
-Se copian tal cual desde `tests/fixtures/` del Python:
-`ejemplo_cfdi.xml`, `cfdi_nota_credito.xml`, `no_es_cfdi.xml`.
+Copied as-is from the Python's `tests/fixtures/`, renamed to English:
+`example_cfdi.xml`, `cfdi_credit_note.xml`, `not_a_cfdi.xml`,
+`cfdi_generic_rfc.xml`. Their XML bodies are unchanged.
 
 ---
 
-## 14. Orden de implementación sugerido
+## 14. Suggested implementation order
 
-1. `laravel new` con Herd, SQLite, Pest. Copiar los fixtures.
-2. Migraciones + modelos `Ajuste` y `Contraparte` + helper `Ajustes`.
-3. `CfdiData`, `CfdiRechazadoException`, `XmlCfdiParser` + su test. **Verde.**
-4. `PdfTextExtractor` (interfaz + fake + smalot), `PdfCfdiParser` + su test. **Verde.**
-5. `Sanitizador`, `SugeridorDeNombre`, `ResolvedorDeContraparte`,
-   `ConstructorDeNombre` + `NamingTest`. **Verde.**
-6. `AgrupadorDeArchivos` + `ProcesadorDeCfdis`.
-7. `CfdiAutofileCommand` + su test de feature. **Verde.**
-8. Web: ajustes → subida en dos fases → tabla → ZIP → contrapartes.
-9. `php artisan cfdi:limpiar`.
+1. `laravel new` with Herd, SQLite, Pest. Copy the fixtures.
+2. Migrations + `Setting` and `Counterparty` models + the `AppSettings` helper.
+3. `CfdiData`, `CfdiRejectedException`, `XmlCfdiParser` + its test. **Green.**
+4. `PdfTextExtractor` (interface + fake + real), `PdfCfdiParser` + its test. **Green.**
+5. `NameSanitizer`, `CounterpartyNameSuggester`, `CounterpartyResolver`,
+   `FileNameBuilder` + their tests. **Green.**
+6. `FileGrouper` + `CfdiProcessor`.
+7. `CfdiAutofileCommand` + its feature test. **Green.**
+8. Web: settings → two-phase upload → table → ZIP → counterparties.
+9. `php artisan cfdi:clean`.
 
-Los pasos 3 a 7 son paridad pura con el Python y se pueden verificar contra él
-corriendo los dos lado a lado sobre los mismos archivos.
+Steps 3 to 7 are pure parity with the Python and can be verified against it by
+running both side by side over the same files.
 
 ---
 
-## 15. Fuera de alcance
+## 15. Out of scope
 
-No implementar, ni siquiera "por si acaso":
+Do not implement, not even "just in case":
 
-- Login, roles, multiusuario.
-- Validación del sello digital o consulta al webservice del SAT.
-- OCR para PDFs escaneados.
-- Watcher de carpetas, colas, jobs en background, scheduler.
-- Historial persistente de facturas procesadas.
-- Integración con Google Drive, Sheets, Dropbox o contabilidad.
-- API pública.
+- Login, roles, multi-user.
+- Digital-seal validation or SAT webservice lookups.
+- OCR for scanned PDFs.
+- Folder watchers, queues, background jobs, scheduler.
+- Google Drive, Sheets, Dropbox or accounting integrations.
+- A public API.

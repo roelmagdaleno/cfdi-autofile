@@ -4,6 +4,12 @@ namespace App\Cfdi\Data;
 
 enum FileAction: string
 {
-    case Copy = 'copiado';
-    case Move = 'movido';
+    case Copy = 'copied';
+
+    case Move = 'moved';
+
+    public function label(): string
+    {
+        return (string) __("cfdi.action.{$this->value}");
+    }
 }

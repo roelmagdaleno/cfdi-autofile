@@ -5,10 +5,11 @@ namespace App\Cfdi\Support;
 final class Rfc
 {
     /**
-     * RFC mexicano: 3 letras (moral) o 4 (fisica) + 6 digitos de fecha + 3 de homoclave.
+     * Mexican RFC: 3 letters (company) or 4 (individual) + 6 date digits + 3 of
+     * the homoclave. It is the SAT's format and stays exactly as it is.
      *
-     * El modificador `/u` es obligatorio: sin el, `[A-ZÑ&]` es una clase de bytes
-     * y un RFC que empieza con `Ñ` no hace match.
+     * The `/u` modifier is mandatory: without it, `[A-ZÑ&]` is a byte class and
+     * an RFC starting with `Ñ` does not match.
      */
     public const string PATTERN = '/\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/u';
 

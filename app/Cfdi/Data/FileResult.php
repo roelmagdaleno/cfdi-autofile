@@ -3,7 +3,7 @@
 namespace App\Cfdi\Data;
 
 /**
- * Una fila del resumen.
+ * One row of the summary.
  */
 final class FileResult
 {
@@ -26,7 +26,9 @@ final class FileResult
             $confidence === Confidence::Low ? FileStatus::Review : FileStatus::Ok,
             $original,
             $newName,
-            $action->value,
+            // The note is rendered copy, not a key: it is stored as-is in
+            // `run_files.note` and read back as a historical record.
+            $action->label(),
             $placed,
         );
     }

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
- * Cache de RFC -> nombre corto de la contraparte.
+ * Cache of RFC -> the counterparty's short name.
  *
  * @property int $id
  * @property string $rfc

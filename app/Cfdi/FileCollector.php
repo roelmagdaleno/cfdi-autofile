@@ -7,10 +7,10 @@ use App\Cfdi\Data\CollectionError;
 use App\Cfdi\Support\PathExpander;
 
 /**
- * Recolecta las rutas procesables y describe por que se descarto cada archivo.
+ * Collects the processable paths and describes why each file was discarded.
  *
- * Lo comparten el comando y la web: los mensajes de rechazo por extension deben
- * ser identicos en las dos interfaces.
+ * The command and the web share it: the rejection messages for an unsupported
+ * extension must be identical in both interfaces.
  */
 final class FileCollector
 {
@@ -31,19 +31,19 @@ final class FileCollector
             $path = PathExpander::expand($raw);
 
             if (! file_exists($path)) {
-                $errors[] = new CollectionError($raw, 'no existe.');
+                $errors[] = new CollectionError($raw, (string) __('cfdi.collection.missing'));
 
                 continue;
             }
 
             if (is_dir($path)) {
-                $errors[] = new CollectionError($raw, 'es una carpeta (usa --dir).');
+                $errors[] = new CollectionError($raw, (string) __('cfdi.collection.is_directory'));
 
                 continue;
             }
 
             if (! in_array(strtolower(PathExpander::suffix($path)), self::EXTENSIONS, true)) {
-                $errors[] = new CollectionError(basename($path), 'extension no soportada (solo .pdf y .xml).');
+                $errors[] = new CollectionError(basename($path), (string) __('cfdi.collection.unsupported_extension'));
 
                 continue;
             }
@@ -55,7 +55,7 @@ final class FileCollector
             $base = PathExpander::expand($directory);
 
             if (! is_dir($base)) {
-                $errors[] = new CollectionError("--dir {$directory}", 'no es una carpeta.');
+                $errors[] = new CollectionError("--dir {$directory}", (string) __('cfdi.collection.not_a_directory'));
             } else {
                 $entries = scandir($base) ?: [];
                 sort($entries, SORT_STRING);
@@ -74,7 +74,7 @@ final class FileCollector
             }
         }
 
-        // Deduplica por ruta resuelta, conservando la primera forma de escribirla.
+        // Deduplicates by resolved path, keeping the first spelling of it.
         /** @var list<string> $unique */
         $unique = [];
         $seen = [];

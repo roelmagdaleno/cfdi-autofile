@@ -7,34 +7,34 @@ beforeEach(function (): void {
     $this->settings = new AppSettings;
 });
 
-it('no tiene RFC por default', function (): void {
+it('has no RFC by default', function (): void {
     expect($this->settings->rfc())->toBeNull();
 });
 
-it('guarda el RFC en mayusculas y sin espacios', function (): void {
+it('stores the RFC uppercased and trimmed', function (): void {
     $this->settings->setRfc('  bbbb010101bbb ');
 
     expect($this->settings->rfc())->toBe('BBBB010101BBB');
     $this->assertDatabaseHas('settings', ['key' => 'rfc', 'value' => 'BBBB010101BBB']);
 });
 
-it('usa la plantilla default cuando no hay nada guardado', function (): void {
-    expect($this->settings->template())->toBe('{fecha} {tipo} {contraparte} - {monto}{nota_credito}');
+it('uses the default template when nothing is stored', function (): void {
+    expect($this->settings->template())->toBe('{date} {type} {counterparty} - {amount}{credit_note}');
 });
 
-it('guarda la plantilla tal cual', function (): void {
-    $this->settings->setTemplate('{tipo} {fecha} - {contraparte}');
+it('stores the template verbatim', function (): void {
+    $this->settings->setTemplate('{type} {date} - {counterparty}');
 
-    expect($this->settings->template())->toBe('{tipo} {fecha} - {contraparte}');
+    expect($this->settings->template())->toBe('{type} {date} - {counterparty}');
 });
 
-it('cae en la plantilla default si la guardada esta vacia', function (): void {
+it('falls back to the default template when the stored one is empty', function (): void {
     $this->settings->setTemplate('');
 
     expect($this->settings->template())->toBe(AppSettings::DEFAULT_TEMPLATE);
 });
 
-it('sobreescribe en vez de duplicar', function (): void {
+it('overwrites instead of duplicating', function (): void {
     $this->settings->setRfc('AAA010101AAA');
     $this->settings->setRfc('BBB020202BBB');
 

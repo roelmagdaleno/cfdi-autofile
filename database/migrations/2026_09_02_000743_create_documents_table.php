@@ -21,17 +21,17 @@ return new class extends Migration
             $table->string('confidence');
             $table->string('source')->nullable();
 
-            // `documents` para lo archivado por la web; `null` cuando la fila solo
-            // apunta a un archivo que vive en el disco del usuario (el comando).
+            // `documents` for what the web archived; `null` when the row merely
+            // points at a file living on the user's disk (the command).
             $table->string('disk')->nullable();
             $table->string('path');
             $table->unsignedBigInteger('size')->nullable();
             $table->string('checksum', 64)->nullable();
             $table->timestamps();
 
-            // Deduplicacion. SQLite trata cada NULL como distinto, asi que los
-            // CFDIs sin folio (leidos del PDF) no chocan entre si: para esos el
-            // fallback es el checksum.
+            // Deduplication. SQLite treats every NULL as distinct, so CFDIs with
+            // no folio (read from the PDF) do not collide with each other: for
+            // those the fallback is the checksum.
             $table->unique(['folio', 'extension']);
             $table->index(['checksum', 'extension']);
             $table->index('issued_on');

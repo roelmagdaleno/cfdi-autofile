@@ -10,17 +10,17 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Un CFDI archivado.
+ * An archived CFDI.
  *
- * No tiene `run_id` a proposito: el mismo comprobante puede llegar desde varias
- * corridas o desde el comando, y sobrevive a todas. La llave natural es el folio
- * fiscal; cuando no hay folio (CFDI leido del PDF por heuristica) el fallback es
- * el checksum del archivo.
+ * It has no `run_id` on purpose: the same invoice can arrive from several runs
+ * or from the command, and it outlives all of them. The natural key is the tax
+ * folio; when there is no folio (a CFDI read from the PDF by heuristics) the
+ * fallback is the file's checksum.
  *
- * `disk` distingue los dos modos: `documents` cuando la app guardo su propia
- * copia (web), `null` cuando la fila solo apunta a un archivo que vive en el
- * disco del usuario (comando). En el segundo caso `path` es absoluto y el
- * archivo puede desaparecer sin que la app se entere.
+ * `disk` tells the two modes apart: `documents` when the app saved its own copy
+ * (web), `null` when the row merely points at a file living on the user's disk
+ * (command). In the second case `path` is absolute and the file can disappear
+ * without the app noticing.
  *
  * @property int $id
  * @property int|null $counterparty_id
@@ -75,7 +75,7 @@ class Document extends Model
     }
 
     /**
-     * La app guardo su propia copia, en vez de solo apuntar a la del usuario.
+     * The app saved its own copy, instead of just pointing at the user's.
      */
     public function isArchived(): bool
     {
@@ -101,7 +101,8 @@ class Document extends Model
     {
         return [
             'issued_on' => 'date',
-            // Sin el cast, SQLite devuelve `11600` y el monto sale sin decimales.
+            // Without the cast, SQLite returns `11600` and the amount comes out
+            // with no decimals.
             'total' => 'decimal:2',
         ];
     }

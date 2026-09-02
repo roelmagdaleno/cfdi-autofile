@@ -6,19 +6,19 @@ use App\Models\Document;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Descarga un CFDI archivado.
+ * Downloads an archived CFDI.
  *
- * A diferencia de una corrida, el id de un documento es un entero secuencial y
- * si es enumerable, asi que el enlace va firmado y expira. La entrada es el id,
- * nunca una ruta: `path` sale de la fila, no del request.
+ * Unlike a run, a document's id is a sequential integer and therefore
+ * enumerable, so the link is signed and expires. The input is the id, never a
+ * path: `path` comes from the row, not from the request.
  */
 final class DownloadDocumentController extends Controller
 {
     public function __invoke(Document $document): BinaryFileResponse
     {
-        // Un documento indexado en el disco del usuario (el comando) puede haber
-        // sido movido o borrado desde afuera sin que la app se entere.
-        abort_unless($document->fileExists(), 404, 'El archivo ya no está en su ubicación.');
+        // A document indexed on the user's own disk (the command) may have been
+        // moved or deleted from outside without the app noticing.
+        abort_unless($document->fileExists(), 404, (string) __('cfdi.error.file_moved'));
 
         return response()->download($document->absolutePath(), $document->name);
     }

@@ -11,35 +11,35 @@ function segmentLabels(array $segments): array
 {
     return array_map(
         static fn (array $segment): string => $segment['placeholder'] === null
-            ? 'texto:'.$segment['text']
-            : 'pieza:'.$segment['placeholder']->value,
+            ? 'text:'.$segment['text']
+            : 'piece:'.$segment['placeholder']->value,
         $segments,
     );
 }
 
-it('parte la plantilla default en piezas y texto', function (): void {
+it('splits the default template into pieces and text', function (): void {
     $segments = Placeholder::segments(AppSettings::DEFAULT_TEMPLATE);
 
     expect(segmentLabels($segments))->toBe([
-        'pieza:fecha',
-        'texto: ',
-        'pieza:tipo',
-        'texto: ',
-        'pieza:contraparte',
-        'texto: - ',
-        'pieza:monto',
-        'pieza:nota_credito',
+        'piece:date',
+        'text: ',
+        'piece:type',
+        'text: ',
+        'piece:counterparty',
+        'text: - ',
+        'piece:amount',
+        'piece:credit_note',
     ]);
 });
 
-it('deja como texto un placeholder desconocido', function (): void {
-    $segments = Placeholder::segments('{fecha} {folio}');
+it('leaves an unknown placeholder as text', function (): void {
+    $segments = Placeholder::segments('{date} {folio}');
 
-    expect(segmentLabels($segments))->toBe(['pieza:fecha', 'texto: {folio}']);
+    expect(segmentLabels($segments))->toBe(['piece:date', 'text: {folio}']);
 });
 
-it('no confunde un texto que se llama igual que una pieza', function (): void {
-    $segments = Placeholder::segments('fecha');
+it('does not confuse text that reads like a piece', function (): void {
+    $segments = Placeholder::segments('date');
 
-    expect(segmentLabels($segments))->toBe(['texto:fecha']);
+    expect(segmentLabels($segments))->toBe(['text:date']);
 });

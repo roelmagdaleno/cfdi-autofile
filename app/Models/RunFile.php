@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Una fila de la tabla de resultados de una corrida, incluidos los rechazados.
+ * One row of a run's results table, rejected files included.
  *
- * Es un snapshot inmutable de lo que paso ese dia. Por eso vive aparte de
- * `documents`: deduplicar un CFDI por folio no debe reescribir el resultado de
- * las corridas viejas.
+ * It is an immutable snapshot of what happened that day. That is why it lives
+ * apart from `documents`: deduplicating a CFDI by folio must not rewrite the
+ * result of older runs.
  *
  * @property int $id
  * @property string $run_id

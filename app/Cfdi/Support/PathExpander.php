@@ -5,7 +5,7 @@ namespace App\Cfdi\Support;
 final class PathExpander
 {
     /**
-     * Expande `~` y `~/...` al home del usuario. `~usuario` no se soporta.
+     * Expands `~` and `~/...` to the user's home. `~user` is not supported.
      */
     public static function expand(string $path): string
     {
@@ -34,10 +34,10 @@ final class PathExpander
     }
 
     /**
-     * Sufijo al estilo de `pathlib.PurePath.suffix`.
+     * Suffix in the style of `pathlib.PurePath.suffix`.
      *
-     * Un archivo llamado literalmente `.pdf` NO tiene sufijo (el punto esta en
-     * la posicion 0). `pathinfo()` reportaria `pdf` y romperia la paridad.
+     * A file literally named `.pdf` has NO suffix (the dot sits at position 0).
+     * `pathinfo()` would report `pdf` and break parity.
      */
     public static function suffix(string $path): string
     {
@@ -48,7 +48,7 @@ final class PathExpander
     }
 
     /**
-     * Nombre base sin el sufijo, al estilo de `pathlib.PurePath.stem`.
+     * Base name without the suffix, in the style of `pathlib.PurePath.stem`.
      */
     public static function stem(string $path): string
     {

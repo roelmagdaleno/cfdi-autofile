@@ -7,9 +7,9 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | Esta app corre local, con un solo usuario y sin login. No hay modelo de
-    | usuarios ni providers, pero el framework lee estas llaves de forma
-    | perezosa, asi que el archivo se queda con lo minimo indispensable.
+    | This app runs locally, with a single user and no login. There is no user
+    | model and no providers, but the framework reads these keys lazily, so the
+    | file is kept down to the bare minimum.
     |
     */
 
@@ -26,7 +26,7 @@ return [
     ],
 
     'providers' => [
-        // Registrado en AppServiceProvider. Nunca devuelve un usuario.
+        // Registered in AppServiceProvider. It never returns a user.
         'none' => [
             'driver' => 'none',
         ],

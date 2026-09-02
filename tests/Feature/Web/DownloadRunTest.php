@@ -24,14 +24,14 @@ function signedDownload(string $runId): string
 }
 
 /**
- * Corre una corrida con un CFDI valido y uno invalido.
+ * Runs a run with one valid CFDI and one invalid one.
  */
 function runWithGoodAndBad(): string
 {
     return Livewire::test(RunCfdis::class)
         ->set('files', [
-            fixtureUpload('ejemplo_cfdi.xml', 'factura01.xml'),
-            fixtureUpload('no_es_cfdi.xml', 'basura.xml'),
+            fixtureUpload('example_cfdi.xml', 'invoice01.xml'),
+            fixtureUpload('not_a_cfdi.xml', 'junk.xml'),
         ])
         ->call('analyze')
         ->get('runId');
@@ -61,7 +61,7 @@ function zipEntries(string $body): array
     return $entries;
 }
 
-it('un archivo rechazado no aparece en el ZIP', function (): void {
+it('a rejected file does not appear in the ZIP', function (): void {
     $runId = runWithGoodAndBad();
 
     $response = $this->get(signedDownload($runId));
@@ -70,38 +70,38 @@ it('un archivo rechazado no aparece en el ZIP', function (): void {
     $entries = zipEntries($response->streamedContent());
 
     expect($entries)->toBe(['2026-02-14 G CONTADOR - 11600.00.xml'])
-        ->and($entries)->not->toContain('basura.xml')
-        ->and($entries)->not->toContain('no_es_cfdi.xml');
+        ->and($entries)->not->toContain('junk.xml')
+        ->and($entries)->not->toContain('not_a_cfdi.xml');
 });
 
-it('el ZIP no incluye la carpeta de entrada', function (): void {
+it('the ZIP does not include the input folder', function (): void {
     $runId = runWithGoodAndBad();
 
     $entries = zipEntries($this->get(signedDownload($runId))->streamedContent());
 
     foreach ($entries as $entry) {
-        expect($entry)->not->toStartWith('entrada/')
-            ->and($entry)->not->toBe('factura01.xml');
+        expect($entry)->not->toStartWith(RunStorage::INPUT.'/')
+            ->and($entry)->not->toBe('invoice01.xml');
     }
 });
 
-it('responde 404 si la corrida no existe', function (): void {
+it('responds 404 when the run does not exist', function (): void {
     $this->get(signedDownload((string) Str::uuid()))->assertNotFound();
 });
 
-it('responde 403 sin firma', function (): void {
+it('responds 403 without a signature', function (): void {
     $runId = runWithGoodAndBad();
 
-    $this->get("/descargar/{$runId}")->assertForbidden();
+    $this->get("/download/{$runId}")->assertForbidden();
 });
 
-it('responde 409 si la corrida no termino', function (): void {
+it('responds 409 when the run has not finished', function (): void {
     $run = Run::factory()->create(['step' => Run::STEP_COUNTERPARTIES]);
 
     $this->get(signedDownload($run->id))->assertStatus(409);
 });
 
-it('responde 410 si cfdi:clean ya se llevo los archivos', function (): void {
+it('responds 410 when cfdi:clean already took the files', function (): void {
     $runId = runWithGoodAndBad();
 
     $this->artisan('cfdi:clean', ['--hours' => 0])->assertExitCode(0);
@@ -109,10 +109,10 @@ it('responde 410 si cfdi:clean ya se llevo los archivos', function (): void {
     $this->get(signedDownload($runId))->assertStatus(410);
 });
 
-it('no acepta un id que no sea UUID', function (string $path): void {
+it('does not accept an id that is not a UUID', function (string $path): void {
     $this->get($path)->assertNotFound();
 })->with([
-    'traversal' => ['/descargar/..%2F..%2Fetc%2Fpasswd'],
-    'texto' => ['/descargar/corrida'],
-    'numero' => ['/descargar/1'],
+    'traversal' => ['/download/..%2F..%2Fetc%2Fpasswd'],
+    'plain text' => ['/download/run'],
+    'a number' => ['/download/1'],
 ]);
