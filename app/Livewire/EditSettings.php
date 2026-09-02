@@ -6,12 +6,12 @@ use App\Cfdi\Data\TypeLetter;
 use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
-use App\Drive\Contracts\DriveFiles;
-use App\Drive\Data\DriveConfig;
-use App\Drive\DriveAccount;
-use App\Drive\DriveFolderResolver;
-use App\Drive\DriveFolderTemplate;
-use App\Drive\Exceptions\DriveException;
+use App\Cloud\CloudAccount;
+use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Exceptions\CloudException;
+use App\Cloud\Google\GoogleDestinations;
+use App\Cloud\Google\GoogleDriveConfig;
+use App\Cloud\Google\GoogleFolderTemplate;
 use App\Support\AppSettings;
 use Closure;
 use Flux\Flux;
@@ -175,7 +175,7 @@ final class EditSettings extends Component
      * question that matters before the first run: is this root folder id right,
      * and are these the folders I already use?
      */
-    public function verifyDrive(AppSettings $settings, DriveFiles $files): void
+    public function verifyDrive(AppSettings $settings, CloudFiles $files): void
     {
         if (! $settings->isDriveConnected()) {
             Flux::toast(variant: 'danger', text: __('ui.validation.drive.not_connected'));
@@ -188,13 +188,13 @@ final class EditSettings extends Component
             'driveExpenseFolder' => $this->driveFolderRules(),
         ]);
 
-        $resolver = new DriveFolderResolver($files, $this->driveConfig());
+        $resolver = new GoogleDestinations($files, $this->driveConfig());
         $year = (int) now()->format('Y');
 
         try {
             $resolver->folderIdFor(TypeLetter::Income, "{$year}-01-01");
             $resolver->folderIdFor(TypeLetter::Expense, "{$year}-01-01");
-        } catch (DriveException $exception) {
+        } catch (CloudException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
@@ -214,8 +214,8 @@ final class EditSettings extends Component
         $year = (int) now()->format('Y');
 
         return [
-            'income' => (new DriveFolderTemplate(trim($this->driveIncomeFolder)))->render($year),
-            'expense' => (new DriveFolderTemplate(trim($this->driveExpenseFolder)))->render($year),
+            'income' => (new GoogleFolderTemplate(trim($this->driveIncomeFolder)))->render($year),
+            'expense' => (new GoogleFolderTemplate(trim($this->driveExpenseFolder)))->render($year),
         ];
     }
 
@@ -226,23 +226,23 @@ final class EditSettings extends Component
         $this->driveEnabled = $drive->enabled;
         // The default alias is an implementation detail: an empty box reads as
         // "the top of My Drive", which is what it means.
-        $this->driveRootFolderId = $drive->rootFolderId === DriveConfig::ROOT ? '' : $drive->rootFolderId;
+        $this->driveRootFolderId = $drive->rootFolderId === GoogleDriveConfig::ROOT ? '' : $drive->rootFolderId;
         $this->driveIncomeFolder = $drive->incomeFolder;
         $this->driveExpenseFolder = $drive->expenseFolder;
         $this->driveConnected = $settings->isDriveConnected();
-        // Resolved through `DriveAccount` rather than read straight from the
+        // Resolved through `CloudAccount` rather than read straight from the
         // settings: an install whose address never made it in gets it filled on
         // this visit instead of showing "connected as" and nothing.
-        $this->driveEmail = app(DriveAccount::class)->email() ?? '';
+        $this->driveEmail = app(CloudAccount::class)->email() ?? '';
     }
 
-    private function driveConfig(): DriveConfig
+    private function driveConfig(): GoogleDriveConfig
     {
         $root = trim($this->driveRootFolderId);
 
-        return new DriveConfig(
+        return new GoogleDriveConfig(
             enabled: $this->driveEnabled,
-            rootFolderId: $root === '' ? DriveConfig::ROOT : $root,
+            rootFolderId: $root === '' ? GoogleDriveConfig::ROOT : $root,
             incomeFolder: trim($this->driveIncomeFolder),
             expenseFolder: trim($this->driveExpenseFolder),
         );
@@ -319,19 +319,19 @@ final class EditSettings extends Component
 
             $template = trim(is_string($value) ? $value : '');
 
-            if (mb_strlen($template) > DriveFolderTemplate::MAX_LENGTH) {
-                $fail((string) __('ui.validation.drive.folder_max', ['max' => DriveFolderTemplate::MAX_LENGTH]));
+            if (mb_strlen($template) > GoogleFolderTemplate::MAX_LENGTH) {
+                $fail((string) __('ui.validation.drive.folder_max', ['max' => GoogleFolderTemplate::MAX_LENGTH]));
 
                 return;
             }
 
-            if (! str_contains($template, DriveFolderTemplate::TOKEN)) {
-                $fail((string) __('ui.validation.drive.folder_token', ['token' => DriveFolderTemplate::TOKEN]));
+            if (! str_contains($template, GoogleFolderTemplate::TOKEN)) {
+                $fail((string) __('ui.validation.drive.folder_token', ['token' => GoogleFolderTemplate::TOKEN]));
 
                 return;
             }
 
-            if (! DriveFolderTemplate::isValid($template)) {
+            if (! GoogleFolderTemplate::isValid($template)) {
                 $fail((string) __('ui.validation.drive.folder_format'));
             }
         }];

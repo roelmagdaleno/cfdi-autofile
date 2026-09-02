@@ -12,9 +12,9 @@ use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
 use App\Console\Prompts\ConsoleNamePrompt;
-use App\Drive\Data\DriveStatus;
-use App\Drive\Data\DriveSyncResult;
-use App\Drive\DriveSync;
+use App\Cloud\Data\CloudStatus;
+use App\Cloud\Data\CloudSyncResult;
+use App\Cloud\CloudSync;
 use App\Support\AppSettings;
 use App\Support\Documents\DocumentArchiver;
 use Illuminate\Console\Command;
@@ -147,7 +147,7 @@ final class CfdiAutofileCommand extends Command
 
         // Uploading comes last and cannot fail the command: the files are
         // already renamed and in place.
-        $drive = app(DriveSync::class)->sync($documents);
+        $drive = app(CloudSync::class)->sync($documents);
 
         $this->newLine();
         $this->line((string) __('console.autofile.output_directory', ['directory' => $result->outputDirectory]));
@@ -189,7 +189,7 @@ final class CfdiAutofileCommand extends Command
      * Prints nothing at all when the integration is off, so the output of an
      * install that never touched it is byte for byte what it was before.
      */
-    private function renderDrive(ProcessResult $result, DriveSyncResult $drive): void
+    private function renderDrive(ProcessResult $result, CloudSyncResult $drive): void
     {
         if ($drive->outcomes === []) {
             return;
@@ -203,7 +203,7 @@ final class CfdiAutofileCommand extends Command
         foreach ($drive->outcomes as $index => $outcome) {
             $name = $result->rows[$index]->newName ?? $result->rows[$index]->original;
 
-            if ($outcome->status === DriveStatus::Uploaded) {
+            if ($outcome->status === CloudStatus::Uploaded) {
                 $uploaded++;
 
                 $this->output->writeln(

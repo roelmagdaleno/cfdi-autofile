@@ -15,9 +15,9 @@ use App\Cfdi\Naming\SuggestedNamePrompt;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cfdi\Support\Rfc;
-use App\Drive\Data\DriveOutcome;
-use App\Drive\Data\DriveStatus;
-use App\Drive\DriveSync;
+use App\Cloud\CloudSync;
+use App\Cloud\Data\CloudOutcome;
+use App\Cloud\Data\CloudStatus;
 use App\Models\Counterparty;
 use App\Models\Document;
 use App\Models\Run;
@@ -360,12 +360,12 @@ final class RunCfdis extends Component
      * Only failures are retried, never skips: a CFDI with no issue date has no
      * folder to go to, and asking again would produce the same answer.
      */
-    public function retryDrive(DriveSync $sync): void
+    public function retryDrive(CloudSync $sync): void
     {
         $failed = RunFile::query()
             ->with('document')
             ->where('run_id', $this->runId)
-            ->where('drive_status', DriveStatus::Failed->value)
+            ->where('drive_status', CloudStatus::Failed->value)
             ->get();
 
         $documents = $failed
@@ -404,7 +404,7 @@ final class RunCfdis extends Component
 
         return RunFile::query()
             ->where('run_id', $this->runId)
-            ->where('drive_status', DriveStatus::Failed->value)
+            ->where('drive_status', CloudStatus::Failed->value)
             ->exists();
     }
 
@@ -496,8 +496,8 @@ final class RunCfdis extends Component
 
         // Uploading is the last thing that happens, and it cannot fail the run:
         // the files are already renamed and archived, so a network blip must not
-        // undo that. `DriveSync` returns failures as values.
-        $drive = app(DriveSync::class)->sync($documents);
+        // undo that. `CloudSync` returns failures as values.
+        $drive = app(CloudSync::class)->sync($documents);
 
         $this->warnings = [...$result->warnings, ...$drive->warnings];
         $this->totalFiles = $result->totalFiles;
@@ -529,7 +529,7 @@ final class RunCfdis extends Component
      *
      * @param  list<CollectionError>  $errors
      * @param  array<int, Document>  $documents
-     * @param  array<int, DriveOutcome>  $outcomes  empty when the integration is off
+     * @param  array<int, CloudOutcome>  $outcomes  empty when the integration is off
      */
     private function persistFiles(array $errors, ProcessResult $result, array $documents, array $outcomes = []): void
     {

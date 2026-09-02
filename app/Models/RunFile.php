@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Drive\Data\DriveStatus;
+use App\Cloud\Data\CloudStatus;
 use Database\Factories\RunFileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -54,9 +54,9 @@ class RunFile extends Model
      * What happened to this file on its way to Drive, when the integration was
      * on for the run. `null` means the integration was off.
      */
-    public function driveStatus(): ?DriveStatus
+    public function driveStatus(): ?CloudStatus
     {
-        return DriveStatus::tryFrom((string) $this->drive_status);
+        return CloudStatus::tryFrom((string) $this->drive_status);
     }
 
     /**

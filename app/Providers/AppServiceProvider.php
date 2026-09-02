@@ -5,11 +5,11 @@ namespace App\Providers;
 use App\Auth\NullUserProvider;
 use App\Cfdi\Parsing\PdfTextExtractor;
 use App\Cfdi\Parsing\PrinsFrankPdfTextExtractor;
-use App\Drive\Contracts\DriveAuthenticator;
-use App\Drive\Contracts\DriveFiles;
-use App\Drive\Google\DriveAccessToken;
-use App\Drive\Google\GoogleDriveAuthenticator;
-use App\Drive\Google\GoogleDriveFiles;
+use App\Cloud\Contracts\CloudOAuth;
+use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Google\GoogleAccessToken;
+use App\Cloud\Google\GoogleCloudOAuth;
+use App\Cloud\Google\GoogleCloudFiles;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
@@ -25,12 +25,12 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(PdfTextExtractor::class, PrinsFrankPdfTextExtractor::class);
 
-        // Scoped, not bound: `DriveAccessToken` memoizes the access token, so a
+        // Scoped, not bound: `GoogleAccessToken` memoizes the access token, so a
         // run of twenty invoices performs one token exchange instead of twenty.
-        // `GoogleDriveFiles` follows so it shares that one instance.
-        $this->app->scoped(DriveAccessToken::class);
-        $this->app->scoped(DriveFiles::class, GoogleDriveFiles::class);
-        $this->app->bind(DriveAuthenticator::class, GoogleDriveAuthenticator::class);
+        // `GoogleCloudFiles` follows so it shares that one instance.
+        $this->app->scoped(GoogleAccessToken::class);
+        $this->app->scoped(CloudFiles::class, GoogleCloudFiles::class);
+        $this->app->bind(CloudOAuth::class, GoogleCloudOAuth::class);
     }
 
     /**

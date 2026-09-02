@@ -3,7 +3,7 @@
 namespace App\Support;
 
 use App\Cfdi\Naming\TypeLetters;
-use App\Drive\Data\DriveConfig;
+use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Setting;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Facades\Crypt;
@@ -92,11 +92,11 @@ final class AppSettings
      * the Drive card behaves exactly like one that predates the feature: the
      * integration is off and nothing reaches the network.
      */
-    public function drive(): DriveConfig
+    public function drive(): GoogleDriveConfig
     {
-        $defaults = DriveConfig::defaults();
+        $defaults = GoogleDriveConfig::defaults();
 
-        return new DriveConfig(
+        return new GoogleDriveConfig(
             enabled: $this->get(self::KEY_DRIVE_ENABLED) === '1',
             rootFolderId: $this->nonEmpty(self::KEY_DRIVE_ROOT_FOLDER) ?? $defaults->rootFolderId,
             incomeFolder: $this->nonEmpty(self::KEY_DRIVE_FOLDER_INCOME) ?? $defaults->incomeFolder,
@@ -108,7 +108,7 @@ final class AppSettings
      * The credentials are deliberately NOT part of this: a form submission must
      * never be able to blank out the refresh token.
      */
-    public function setDrive(DriveConfig $config): void
+    public function setDrive(GoogleDriveConfig $config): void
     {
         $this->put(self::KEY_DRIVE_ENABLED, $config->enabled ? '1' : '0');
         $this->put(self::KEY_DRIVE_ROOT_FOLDER, trim($config->rootFolderId));
@@ -152,7 +152,7 @@ final class AppSettings
 
     /**
      * A blank address forgets the row instead of storing an empty string, so
-     * "not known yet" has exactly one representation and `DriveAccount` can
+     * "not known yet" has exactly one representation and `CloudAccount` can
      * tell it apart from a real answer.
      */
     public function setDriveAccountEmail(string $email): void

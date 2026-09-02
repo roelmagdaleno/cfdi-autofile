@@ -1,9 +1,9 @@
 <?php
 
-use App\Http\Controllers\ConnectDriveController;
+use App\Http\Controllers\ConnectCloudController;
 use App\Http\Controllers\DownloadDocumentController;
 use App\Http\Controllers\DownloadRunController;
-use App\Http\Controllers\DriveCallbackController;
+use App\Http\Controllers\CloudCallbackController;
 use App\Livewire\BrowseDocuments;
 use App\Livewire\EditSettings;
 use App\Livewire\ManageCounterparties;
@@ -17,8 +17,8 @@ Route::livewire('counterparties', ManageCounterparties::class)->name('counterpar
 
 // The OAuth handshake for the Google Drive integration. The callback URI has to
 // match, byte for byte, the one registered on the OAuth client.
-Route::get('drive/connect', ConnectDriveController::class)->name('drive.connect');
-Route::get('drive/callback', DriveCallbackController::class)->name('drive.callback');
+Route::get('drive/connect', ConnectCloudController::class)->name('drive.connect');
+Route::get('drive/callback', CloudCallbackController::class)->name('drive.callback');
 
 Route::get('download/{run}', DownloadRunController::class)
     ->whereUuid('run')

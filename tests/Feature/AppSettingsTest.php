@@ -1,7 +1,7 @@
 <?php
 
 use App\Cfdi\Naming\TypeLetters;
-use App\Drive\Data\DriveConfig;
+use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Setting;
 use App\Support\AppSettings;
 
@@ -83,7 +83,7 @@ it('defaults the drive integration to off with the spanish folder names', functi
 });
 
 it('stores and reads back the drive configuration', function (): void {
-    $this->settings->setDrive(new DriveConfig(
+    $this->settings->setDrive(new GoogleDriveConfig(
         enabled: true,
         rootFolderId: '  1a2b3c  ',
         incomeFolder: '  Emitidas {year}  ',
@@ -118,7 +118,7 @@ it('treats an undecryptable token as not connected', function (): void {
 });
 
 it('keeps the folder configuration when the account is disconnected', function (): void {
-    $this->settings->setDrive(new DriveConfig(true, '1a2b3c', 'Emitidas {year}', 'Recibidas {year}'));
+    $this->settings->setDrive(new GoogleDriveConfig(true, '1a2b3c', 'Emitidas {year}', 'Recibidas {year}'));
     $this->settings->setDriveRefreshToken('super-secret');
     $this->settings->setDriveAccountEmail('facturas@example.com');
 

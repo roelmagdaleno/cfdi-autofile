@@ -234,7 +234,7 @@
                     />
 
                     <flux:text variant="subtle" class="text-xs sm:col-span-2">
-                        {{ __('ui.drive.folders_description', ['token' => \App\Drive\DriveFolderTemplate::TOKEN]) }}
+                        {{ __('ui.drive.folders_description', ['token' => \App\Cloud\Google\GoogleFolderTemplate::TOKEN]) }}
                     </flux:text>
                 </div>
 

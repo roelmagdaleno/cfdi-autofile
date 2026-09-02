@@ -1,0 +1,171 @@
+<?php
+
+namespace App\Cloud;
+
+use App\Cfdi\Data\TypeLetter;
+use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Data\CloudFile;
+use App\Cloud\Data\CloudOutcome;
+use App\Cloud\Data\CloudStatus;
+use App\Cloud\Data\CloudSyncResult;
+use App\Cloud\Data\CloudUpload;
+use App\Cloud\Exceptions\CloudDestinationUnknownException;
+use App\Cloud\Exceptions\CloudException;
+use App\Cloud\Google\GoogleDestinations;
+use App\Models\Document;
+use App\Support\AppSettings;
+
+/**
+ * Uploads the documents a run just archived, and records where they landed.
+ *
+ * This is the only thing the two entry points -- the Livewire run and the
+ * Artisan command -- know about Drive. It works from `Document` rows rather than
+ * from the processor's output, because a document already carries the two
+ * coordinates that decide the folder (`type_letter`, `issued_on`) and the
+ * absolute path of the file in either mode, archived copy or file in place.
+ *
+ * Nothing in here is allowed to abort a run: a failure is a value, not an
+ * exception. The renaming already happened and the files are already on disk, so
+ * losing that over a network blip would be absurd.
+ */
+final class CloudSync
+{
+    /** @var array<string, string> */
+    private const array MIME_TYPES = [
+        'xml' => 'application/xml',
+        'pdf' => 'application/pdf',
+    ];
+
+    private const string FALLBACK_MIME_TYPE = 'application/octet-stream';
+
+    public function __construct(
+        private readonly AppSettings $settings,
+        private readonly CloudFiles $files,
+    ) {}
+
+    /**
+     * @param  array<int, Document>  $documents  as `DocumentArchiver::archive()` returns them
+     */
+    public function sync(array $documents): CloudSyncResult
+    {
+        $config = $this->settings->drive();
+
+        // Off, or nothing to do: not a single byte reaches the network.
+        if (! $config->enabled || $documents === []) {
+            return new CloudSyncResult;
+        }
+
+        // Checked once, up front: without a token every single file would fail
+        // for the same reason, and twenty identical rows help nobody.
+        if (! $this->settings->isDriveConnected()) {
+            return $this->allFailed($documents, (string) __('cfdi.drive.not_connected'));
+        }
+
+        $resolver = new GoogleDestinations($this->files, $config);
+        $outcomes = [];
+
+        foreach ($documents as $key => $document) {
+            $outcomes[$key] = $this->syncOne($resolver, $document);
+        }
+
+        return new CloudSyncResult($outcomes, $this->warningsFor($outcomes));
+    }
+
+    private function syncOne(GoogleDestinations $resolver, Document $document): CloudOutcome
+    {
+        // The command indexes files that live on the user's disk, so one can be
+        // moved or deleted between the run and the upload.
+        if (! $document->fileExists()) {
+            return CloudOutcome::skipped((string) __('cfdi.drive.skipped.missing_file'));
+        }
+
+        try {
+            $folderId = $resolver->folderIdFor(
+                $this->typeOf($document),
+                $document->issued_on?->format('Y-m-d'),
+            );
+        } catch (CloudDestinationUnknownException $exception) {
+            return CloudOutcome::skipped($exception->getMessage());
+        }
+
+        $upload = new CloudUpload(
+            localPath: $document->absolutePath(),
+            name: $document->name,
+            mimeType: self::MIME_TYPES[$document->extension] ?? self::FALLBACK_MIME_TYPE,
+            folderId: $folderId,
+        );
+
+        try {
+            $file = $this->put($document, $upload);
+        } catch (CloudException $exception) {
+            return CloudOutcome::failed($exception->getMessage());
+        }
+
+        $document->update([
+            'drive_file_id' => $file->id,
+            'drive_link' => $file->webViewLink,
+            'drive_uploaded_at' => now(),
+        ]);
+
+        return CloudOutcome::uploaded($file->webViewLink);
+    }
+
+    /**
+     * Reprocessing the same CFDI must update the file in Drive, not add a
+     * second copy of it. `drive_file_id` is what makes that possible, riding on
+     * the deduplication `documents` already does by folio.
+     *
+     * If that id no longer resolves -- the user deleted the file from Drive --
+     * the upload starts over instead of failing, which is the only outcome that
+     * leaves them with their invoice.
+     */
+    private function put(Document $document, CloudUpload $upload): CloudFile
+    {
+        if ($document->drive_file_id === null) {
+            return $this->files->upload($upload);
+        }
+
+        try {
+            return $this->files->replace($document->drive_file_id, $upload);
+        } catch (CloudException) {
+            return $this->files->upload($upload);
+        }
+    }
+
+    private function typeOf(Document $document): TypeLetter
+    {
+        return TypeLetter::tryFrom((string) $document->type_letter) ?? TypeLetter::Unknown;
+    }
+
+    /**
+     * @param  array<int, Document>  $documents
+     */
+    private function allFailed(array $documents, string $reason): CloudSyncResult
+    {
+        $outcomes = [];
+
+        foreach (array_keys($documents) as $key) {
+            $outcomes[$key] = CloudOutcome::failed($reason);
+        }
+
+        return new CloudSyncResult($outcomes, [$reason]);
+    }
+
+    /**
+     * One summarizing warning, not one per row: the per-file reason is already
+     * on its own row in the results table.
+     *
+     * @param  array<int, CloudOutcome>  $outcomes
+     * @return list<string>
+     */
+    private function warningsFor(array $outcomes): array
+    {
+        $failed = array_filter($outcomes, fn (CloudOutcome $o): bool => $o->status === CloudStatus::Failed);
+
+        if ($failed === []) {
+            return [];
+        }
+
+        return [(string) __('cfdi.drive.warning.some_failed', ['count' => count($failed)])];
+    }
+}

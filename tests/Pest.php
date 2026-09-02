@@ -1,15 +1,15 @@
 <?php
 
 use App\Cfdi\Parsing\PdfTextExtractor;
-use App\Drive\Contracts\DriveFiles;
-use App\Drive\Data\DriveConfig;
+use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Document;
 use App\Support\AppSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Tests\Support\FakeDriveFiles;
+use Tests\Support\FakeCloudFiles;
 use Tests\Support\FakePdfTextExtractor;
 use Tests\TestCase;
 
@@ -27,7 +27,7 @@ pest()->extend(TestCase::class)
     ->beforeEach(function (): void {
         Storage::fake(Document::DISK);
 
-        app()->instance(DriveFiles::class, new FakeDriveFiles);
+        app()->instance(CloudFiles::class, new FakeCloudFiles);
 
         // Belt and braces: any HTTP request that is not explicitly faked throws
         // instead of leaving the machine.
@@ -88,20 +88,20 @@ function fakePdfText(string $text): void
 
 /**
  * Turns the Drive integration on with a connected account, and returns the fake
- * the container will hand to `DriveSync`.
+ * the container will hand to `CloudSync`.
  */
-function fakeDrive(?FakeDriveFiles $files = null): FakeDriveFiles
+function fakeDrive(?FakeCloudFiles $files = null): FakeCloudFiles
 {
-    $files ??= new FakeDriveFiles;
+    $files ??= new FakeCloudFiles;
 
-    app()->instance(DriveFiles::class, $files);
+    app()->instance(CloudFiles::class, $files);
 
     $settings = app(AppSettings::class);
-    $settings->setDrive(new DriveConfig(
+    $settings->setDrive(new GoogleDriveConfig(
         enabled: true,
-        rootFolderId: DriveConfig::ROOT,
-        incomeFolder: DriveConfig::DEFAULT_INCOME_FOLDER,
-        expenseFolder: DriveConfig::DEFAULT_EXPENSE_FOLDER,
+        rootFolderId: GoogleDriveConfig::ROOT,
+        incomeFolder: GoogleDriveConfig::DEFAULT_INCOME_FOLDER,
+        expenseFolder: GoogleDriveConfig::DEFAULT_EXPENSE_FOLDER,
     ));
     $settings->setDriveRefreshToken('refresh-token-abc');
     $settings->setDriveAccountEmail('facturas@example.com');
