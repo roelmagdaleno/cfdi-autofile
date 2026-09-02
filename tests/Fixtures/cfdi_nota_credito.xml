@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0"
+    Fecha="2026-03-01T09:00:00" SubTotal="1000.00" Total="1160.00" Moneda="MXN"
+    TipoDeComprobante="E" Exportacion="01" LugarExpedicion="64000">
+  <cfdi:CfdiRelacionados TipoRelacion="04" Version="4.0">
+    <cfdi:CfdiRelacionado UUID="11111111-2222-3333-4444-555555555555"/>
+  </cfdi:CfdiRelacionados>
+  <cfdi:Emisor Rfc="AAA010101AAA" Nombre="SERVICIOS CONTABLES DEL NORTE SA DE CV" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="BBBB010101BBB" Nombre="RECEPTOR DE PRUEBA" DomicilioFiscalReceptor="64000" RegimenFiscalReceptor="612" UsoCFDI="G03"/>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+        Version="1.1" UUID="99999999-8888-7777-6666-555555555555"
+        FechaTimbrado="2026-03-01T09:01:00" RfcProvCertif="SAT970701NN3"
+        SelloCFD="X==" NoCertificadoSAT="00001000000504465028" SelloSAT="Y=="/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

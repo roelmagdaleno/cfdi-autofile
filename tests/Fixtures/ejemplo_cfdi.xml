@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante
+    xmlns:cfdi="http://www.sat.gob.mx/cfd/4"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd"
+    Version="4.0"
+    Serie="A"
+    Folio="1024"
+    Fecha="2026-02-14T11:32:05"
+    Sello="ABC123=="
+    FormaPago="03"
+    NoCertificado="00001000000512345678"
+    Certificado="MIIF..."
+    SubTotal="10000.00"
+    Moneda="MXN"
+    Total="11600.00"
+    TipoDeComprobante="I"
+    Exportacion="01"
+    MetodoPago="PUE"
+    LugarExpedicion="64000">
+  <cfdi:Emisor Rfc="AAA010101AAA" Nombre="SERVICIOS CONTABLES DEL NORTE SA DE CV" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="BBBB010101BBB" Nombre="RECEPTOR DE PRUEBA" DomicilioFiscalReceptor="64000" RegimenFiscalReceptor="612" UsoCFDI="G03"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="84111506" Cantidad="1" ClaveUnidad="E48" Descripcion="Servicios de contabilidad" ValorUnitario="10000.00" Importe="10000.00" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="10000.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1600.00"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="1600.00">
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="10000.00" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="1600.00"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital
+        xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital"
+        xsi:schemaLocation="http://www.sat.gob.mx/TimbreFiscalDigital http://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd"
+        Version="1.1"
+        UUID="A1B2C3D4-E5F6-4789-ABCD-1234567890AB"
+        FechaTimbrado="2026-02-14T11:33:10"
+        RfcProvCertif="SAT970701NN3"
+        SelloCFD="ABC123=="
+        NoCertificadoSAT="00001000000504465028"
+        SelloSAT="DEF456=="/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

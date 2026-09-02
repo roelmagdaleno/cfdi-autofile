@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factura>
+  <cliente rfc="AAA010101AAA">Cliente Cualquiera</cliente>
+  <total>1160.00</total>
+  <fecha>2026-02-14</fecha>
+</factura>
