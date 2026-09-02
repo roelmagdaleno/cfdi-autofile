@@ -62,7 +62,7 @@ it('reuses a folder the user already had instead of creating one', function (): 
     app(CloudSync::class)->sync([$document]);
 
     expect($files->created)->toBe([])
-        ->and($files->files['file-1']->folderId)->toBe('existing-folder');
+        ->and($files->files['file-1']->destination->handle)->toBe('existing-folder');
 });
 
 it('creates the folder of a year that does not exist yet', function (): void {

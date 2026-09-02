@@ -5,7 +5,9 @@ namespace App\Cloud\Google;
 use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Data\CloudFile;
 use App\Cloud\Data\CloudUpload;
+use App\Cloud\Exceptions\CloudException;
 use App\Cloud\Exceptions\CloudRequestException;
+use App\Cloud\Google\Contracts\GoogleFolders;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -22,7 +24,7 @@ use Illuminate\Support\Facades\Http;
  * Uploads are simple multipart: a CFDI is a few kilobytes of XML or PDF, and a
  * resumable session would be two extra round trips for nothing.
  */
-final class GoogleCloudFiles implements CloudFiles
+final class GoogleCloudFiles implements CloudFiles, GoogleFolders
 {
     private const string API = 'https://www.googleapis.com/drive/v3';
 
@@ -37,23 +39,33 @@ final class GoogleCloudFiles implements CloudFiles
         return $this->findFolder($parentId, $name) ?? $this->createFolder($parentId, $name);
     }
 
-    public function upload(CloudUpload $upload): CloudFile
+    /**
+     * Reprocessing the same CFDI must update the file in Drive, not add a
+     * second copy of it. `remoteId` is what makes that possible, riding on the
+     * deduplication `documents` already does by folio.
+     *
+     * If that id no longer resolves -- the user deleted the file from Drive --
+     * the upload starts over instead of failing, which is the only outcome that
+     * leaves them with their invoice. That recovery lives here rather than in
+     * `CloudSync` because "the id is gone" is a Drive answer, not a generic one.
+     */
+    public function put(CloudUpload $upload): CloudFile
     {
-        return $this->fileFrom(
-            $this->multipart($upload, ['name' => $upload->name, 'parents' => [$upload->folderId]]),
-            'upload',
-        );
+        if ($upload->remoteId === null) {
+            return $this->upload($upload);
+        }
+
+        try {
+            return $this->fileFrom(
+                $this->multipart($upload, ['name' => $upload->name], $upload->remoteId),
+                'replace',
+            );
+        } catch (CloudException) {
+            return $this->upload($upload);
+        }
     }
 
-    public function replace(string $fileId, CloudUpload $upload): CloudFile
-    {
-        return $this->fileFrom(
-            $this->multipart($upload, ['name' => $upload->name], $fileId),
-            'replace',
-        );
-    }
-
-    public function accountEmail(): string
+    public function accountLabel(): string
     {
         $response = $this->request()->get(self::API.'/about', ['fields' => 'user/emailAddress']);
 
@@ -66,6 +78,14 @@ final class GoogleCloudFiles implements CloudFiles
         }
 
         return $email;
+    }
+
+    private function upload(CloudUpload $upload): CloudFile
+    {
+        return $this->fileFrom(
+            $this->multipart($upload, ['name' => $upload->name, 'parents' => [$upload->destination->handle]]),
+            'upload',
+        );
     }
 
     /**
@@ -145,7 +165,7 @@ final class GoogleCloudFiles implements CloudFiles
         }
 
         $query = $this->uploadQuery([
-            'addParents' => $upload->folderId,
+            'addParents' => $upload->destination->handle,
             'removeParents' => $this->parentsOf($fileId),
         ]);
 
@@ -200,7 +220,7 @@ final class GoogleCloudFiles implements CloudFiles
             id: $id,
             // Drive omits `webViewLink` for some file types; the canonical URL
             // works regardless, so the table always has something to link to.
-            webViewLink: is_string($link) && $link !== '' ? $link : "https://drive.google.com/file/d/{$id}/view",
+            link: is_string($link) && $link !== '' ? $link : "https://drive.google.com/file/d/{$id}/view",
         );
     }
 

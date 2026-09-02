@@ -1,5 +1,6 @@
 <?php
 
+use App\Cloud\Data\CloudDestination;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudNotConnectedException;
 use App\Cloud\Exceptions\CloudRequestException;
@@ -24,6 +25,15 @@ beforeEach(function (): void {
     $this->files = fn (): GoogleCloudFiles => new GoogleCloudFiles(new GoogleAccessToken(app(AppSettings::class)));
 });
 
+/**
+ * A destination whose handle is a Drive folder id, which is all this class
+ * knows about the concept.
+ */
+function destination(string $folderId): CloudDestination
+{
+    return new CloudDestination($folderId, '2026 - Emitidas');
+}
+
 function fakeGoogle(array $responses = []): void
 {
     Http::fake([
@@ -35,7 +45,7 @@ function fakeGoogle(array $responses = []): void
 it('trades the refresh token for an access token and authorizes with it', function (): void {
     fakeGoogle(['*/drive/v3/about*' => Http::response(['user' => ['emailAddress' => 'facturas@example.com']])]);
 
-    expect(($this->files)()->accountEmail())->toBe('facturas@example.com');
+    expect(($this->files)()->accountLabel())->toBe('facturas@example.com');
 
     Http::assertSent(fn (Request $r): bool => $r->url() === GoogleAccessToken::ENDPOINT
         && $r['grant_type'] === 'refresh_token'
@@ -50,8 +60,8 @@ it('exchanges the token once per instance', function (): void {
     fakeGoogle(['*/drive/v3/about*' => Http::response(['user' => ['emailAddress' => 'a@b.c']])]);
 
     $files = ($this->files)();
-    $files->accountEmail();
-    $files->accountEmail();
+    $files->accountLabel();
+    $files->accountLabel();
 
     Http::assertSentCount(3);
 });
@@ -100,9 +110,9 @@ it('uploads the file as a multipart related body', function (): void {
 
     fakeGoogle(['*/upload/drive/v3/files*' => Http::response(['id' => 'file-1', 'webViewLink' => 'https://drive.google.com/x'])]);
 
-    $file = ($this->files)()->upload(new CloudUpload($path, 'factura.xml', 'application/xml', 'folder-1'));
+    $file = ($this->files)()->put(new CloudUpload($path, 'factura.xml', 'application/xml', destination('folder-1')));
 
-    expect($file->id)->toBe('file-1')->and($file->webViewLink)->toBe('https://drive.google.com/x');
+    expect($file->id)->toBe('file-1')->and($file->link)->toBe('https://drive.google.com/x');
 
     Http::assertSent(function (Request $r): bool {
         $body = $r->body();
@@ -125,12 +135,32 @@ it('replaces a file with a patch that moves it out of its old folder', function 
         ->push(['parents' => ['old-folder']])
         ->push(['id' => 'file-1', 'webViewLink' => 'https://drive.google.com/x']);
 
-    ($this->files)()->replace('file-1', new CloudUpload($path, 'nuevo.xml', 'application/xml', 'new-folder'));
+    ($this->files)()->put(new CloudUpload($path, 'nuevo.xml', 'application/xml', destination('new-folder'), 'file-1'));
 
     Http::assertSent(fn (Request $r): bool => $r->method() === 'PATCH'
         && str_contains($r->url(), 'files/file-1')
         && str_contains(urldecode($r->url()), 'addParents=new-folder')
         && str_contains(urldecode($r->url()), 'removeParents=old-folder'));
+});
+
+// The user deleted the file from Drive by hand. Failing here would leave them
+// without their invoice, so the upload starts over instead.
+it('uploads again when the file it should replace is gone', function (): void {
+    $path = cfdiTempDir().'/factura.xml';
+    file_put_contents($path, '<cfdi/>');
+
+    Http::fakeSequence()
+        ->push(['access_token' => 'access-token-xyz'])
+        ->push(['parents' => ['old-folder']])
+        ->push(['error' => ['message' => 'File not found: file-1']], 404)
+        ->push(['id' => 'file-2', 'webViewLink' => 'https://drive.google.com/y']);
+
+    $file = ($this->files)()->put(new CloudUpload($path, 'nuevo.xml', 'application/xml', destination('new-folder'), 'file-1'));
+
+    expect($file->id)->toBe('file-2');
+
+    Http::assertSent(fn (Request $r): bool => $r->method() === 'POST'
+        && str_contains($r->url(), 'uploadType=multipart'));
 });
 
 it('falls back to the canonical url when drive omits the view link', function (): void {
@@ -139,7 +169,7 @@ it('falls back to the canonical url when drive omits the view link', function ()
 
     fakeGoogle(['*/upload/drive/v3/files*' => Http::response(['id' => 'file-9'])]);
 
-    expect(($this->files)()->upload(new CloudUpload($path, 'a.xml', 'application/xml', 'f'))->webViewLink)
+    expect(($this->files)()->put(new CloudUpload($path, 'a.xml', 'application/xml', destination('f')))->link)
         ->toBe('https://drive.google.com/file/d/file-9/view');
 });
 
@@ -153,7 +183,7 @@ it('turns a drive error into an exception carrying google\'s own message', funct
 it('reports no connection when there is no refresh token', function (): void {
     app(AppSettings::class)->disconnectDrive();
 
-    expect(fn () => ($this->files)()->accountEmail())->toThrow(CloudNotConnectedException::class);
+    expect(fn () => ($this->files)()->accountLabel())->toThrow(CloudNotConnectedException::class);
 
     Http::assertNothingSent();
 });
@@ -166,6 +196,6 @@ it('forgets a token google has stopped accepting', function (): void {
         'oauth2.googleapis.com/token' => Http::response(['error' => 'invalid_grant'], 400),
     ]);
 
-    expect(fn () => ($this->files)()->accountEmail())->toThrow(CloudNotConnectedException::class)
+    expect(fn () => ($this->files)()->accountLabel())->toThrow(CloudNotConnectedException::class)
         ->and(app(AppSettings::class)->isDriveConnected())->toBeFalse();
 });

@@ -5,11 +5,15 @@ namespace App\Providers;
 use App\Auth\NullUserProvider;
 use App\Cfdi\Parsing\PdfTextExtractor;
 use App\Cfdi\Parsing\PrinsFrankPdfTextExtractor;
-use App\Cloud\Contracts\CloudOAuth;
+use App\Cloud\Contracts\CloudDestinations;
 use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Contracts\CloudOAuth;
+use App\Cloud\Google\Contracts\GoogleFolders;
 use App\Cloud\Google\GoogleAccessToken;
-use App\Cloud\Google\GoogleCloudOAuth;
 use App\Cloud\Google\GoogleCloudFiles;
+use App\Cloud\Google\GoogleCloudOAuth;
+use App\Cloud\Google\GoogleDestinations;
+use App\Support\AppSettings;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
@@ -31,6 +35,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(GoogleAccessToken::class);
         $this->app->scoped(CloudFiles::class, GoogleCloudFiles::class);
         $this->app->bind(CloudOAuth::class, GoogleCloudOAuth::class);
+        $this->app->bind(GoogleFolders::class, GoogleCloudFiles::class);
+
+        // A closure, so resolving the container never reads the `settings` table
+        // on its own -- a boot before the first `migrate` would blow up.
+        $this->app->bind(CloudDestinations::class, fn ($app): GoogleDestinations => new GoogleDestinations(
+            $app->make(GoogleFolders::class),
+            $app->make(AppSettings::class)->drive(),
+        ));
     }
 
     /**

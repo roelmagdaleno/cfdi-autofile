@@ -6,6 +6,7 @@ use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Data\CloudFile;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudRequestException;
+use App\Cloud\Google\Contracts\GoogleFolders;
 
 /**
  * In-memory Google Drive.
@@ -16,7 +17,7 @@ use App\Cloud\Exceptions\CloudRequestException;
  * outside: that an existing folder is reused instead of duplicated, and that
  * reprocessing replaces a file instead of uploading a second copy.
  */
-final class FakeCloudFiles implements CloudFiles
+final class FakeCloudFiles implements CloudFiles, GoogleFolders
 {
     /** @var array<string, string> folder name => id */
     public array $folders = [];
@@ -79,10 +80,19 @@ final class FakeCloudFiles implements CloudFiles
         return $this->folders[$name] = 'folder-'.++$this->folderSequence;
     }
 
-    public function upload(CloudUpload $upload): CloudFile
+    public function put(CloudUpload $upload): CloudFile
     {
         if ($this->failUpload === $upload->name) {
             throw CloudRequestException::make('upload', 403, 'storageQuotaExceeded');
+        }
+
+        // Same recovery the real provider does: an id that no longer resolves
+        // means the user deleted the file, so the upload starts over.
+        if ($upload->remoteId !== null && isset($this->files[$upload->remoteId])) {
+            $this->files[$upload->remoteId] = $upload;
+            $this->replaced[] = $upload->name;
+
+            return new CloudFile($upload->remoteId, $this->linkTo($upload->remoteId));
         }
 
         $id = 'file-'.++$this->fileSequence;
@@ -90,26 +100,10 @@ final class FakeCloudFiles implements CloudFiles
         $this->files[$id] = $upload;
         $this->uploaded[] = $upload->name;
 
-        return new CloudFile($id, "https://drive.google.com/file/d/{$id}/view");
+        return new CloudFile($id, $this->linkTo($id));
     }
 
-    public function replace(string $fileId, CloudUpload $upload): CloudFile
-    {
-        if (! isset($this->files[$fileId])) {
-            throw CloudRequestException::make('replace', 404, "File not found: {$fileId}");
-        }
-
-        if ($this->failUpload === $upload->name) {
-            throw CloudRequestException::make('replace', 403, 'storageQuotaExceeded');
-        }
-
-        $this->files[$fileId] = $upload;
-        $this->replaced[] = $upload->name;
-
-        return new CloudFile($fileId, "https://drive.google.com/file/d/{$fileId}/view");
-    }
-
-    public function accountEmail(): string
+    public function accountLabel(): string
     {
         if ($this->failAbout) {
             throw CloudRequestException::make('about', 503, 'backendError');
@@ -125,10 +119,15 @@ final class FakeCloudFiles implements CloudFiles
     {
         foreach ($this->files as $upload) {
             if ($upload->name === $name) {
-                return array_search($upload->folderId, $this->folders, true) ?: $upload->folderId;
+                return $upload->destination->label;
             }
         }
 
         return null;
+    }
+
+    private function linkTo(string $id): string
+    {
+        return "https://drive.google.com/file/d/{$id}/view";
     }
 }

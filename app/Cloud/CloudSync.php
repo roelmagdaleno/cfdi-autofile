@@ -3,15 +3,14 @@
 namespace App\Cloud;
 
 use App\Cfdi\Data\TypeLetter;
+use App\Cloud\Contracts\CloudDestinations;
 use App\Cloud\Contracts\CloudFiles;
-use App\Cloud\Data\CloudFile;
 use App\Cloud\Data\CloudOutcome;
 use App\Cloud\Data\CloudStatus;
 use App\Cloud\Data\CloudSyncResult;
 use App\Cloud\Data\CloudUpload;
 use App\Cloud\Exceptions\CloudDestinationUnknownException;
 use App\Cloud\Exceptions\CloudException;
-use App\Cloud\Google\GoogleDestinations;
 use App\Models\Document;
 use App\Support\AppSettings;
 
@@ -41,6 +40,7 @@ final class CloudSync
     public function __construct(
         private readonly AppSettings $settings,
         private readonly CloudFiles $files,
+        private readonly CloudDestinations $destinations,
     ) {}
 
     /**
@@ -61,17 +61,16 @@ final class CloudSync
             return $this->allFailed($documents, (string) __('cfdi.drive.not_connected'));
         }
 
-        $resolver = new GoogleDestinations($this->files, $config);
         $outcomes = [];
 
         foreach ($documents as $key => $document) {
-            $outcomes[$key] = $this->syncOne($resolver, $document);
+            $outcomes[$key] = $this->syncOne($document);
         }
 
         return new CloudSyncResult($outcomes, $this->warningsFor($outcomes));
     }
 
-    private function syncOne(GoogleDestinations $resolver, Document $document): CloudOutcome
+    private function syncOne(Document $document): CloudOutcome
     {
         // The command indexes files that live on the user's disk, so one can be
         // moved or deleted between the run and the upload.
@@ -80,7 +79,7 @@ final class CloudSync
         }
 
         try {
-            $folderId = $resolver->folderIdFor(
+            $destination = $this->destinations->destinationFor(
                 $this->typeOf($document),
                 $document->issued_on?->format('Y-m-d'),
             );
@@ -92,44 +91,23 @@ final class CloudSync
             localPath: $document->absolutePath(),
             name: $document->name,
             mimeType: self::MIME_TYPES[$document->extension] ?? self::FALLBACK_MIME_TYPE,
-            folderId: $folderId,
+            destination: $destination,
+            remoteId: $document->drive_file_id,
         );
 
         try {
-            $file = $this->put($document, $upload);
+            $file = $this->files->put($upload);
         } catch (CloudException $exception) {
             return CloudOutcome::failed($exception->getMessage());
         }
 
         $document->update([
             'drive_file_id' => $file->id,
-            'drive_link' => $file->webViewLink,
+            'drive_link' => $file->link,
             'drive_uploaded_at' => now(),
         ]);
 
-        return CloudOutcome::uploaded($file->webViewLink);
-    }
-
-    /**
-     * Reprocessing the same CFDI must update the file in Drive, not add a
-     * second copy of it. `drive_file_id` is what makes that possible, riding on
-     * the deduplication `documents` already does by folio.
-     *
-     * If that id no longer resolves -- the user deleted the file from Drive --
-     * the upload starts over instead of failing, which is the only outcome that
-     * leaves them with their invoice.
-     */
-    private function put(Document $document, CloudUpload $upload): CloudFile
-    {
-        if ($document->drive_file_id === null) {
-            return $this->files->upload($upload);
-        }
-
-        try {
-            return $this->files->replace($document->drive_file_id, $upload);
-        } catch (CloudException) {
-            return $this->files->upload($upload);
-        }
+        return CloudOutcome::uploaded($file->link);
     }
 
     private function typeOf(Document $document): TypeLetter

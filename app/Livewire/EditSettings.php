@@ -7,8 +7,8 @@ use App\Cfdi\Naming\Placeholder;
 use App\Cfdi\Naming\TemplateExample;
 use App\Cfdi\Naming\TypeLetters;
 use App\Cloud\CloudAccount;
-use App\Cloud\Contracts\CloudFiles;
 use App\Cloud\Exceptions\CloudException;
+use App\Cloud\Google\Contracts\GoogleFolders;
 use App\Cloud\Google\GoogleDestinations;
 use App\Cloud\Google\GoogleDriveConfig;
 use App\Cloud\Google\GoogleFolderTemplate;
@@ -173,9 +173,14 @@ final class EditSettings extends Component
      *
      * It runs against what is TYPED, not what is saved, so it answers the only
      * question that matters before the first run: is this root folder id right,
-     * and are these the folders I already use?
+     * and are these the folders I already use? That is why the resolver is built
+     * by hand instead of resolved from the container, which would read the saved
+     * settings and quietly verify the wrong thing.
+     *
+     * Knowing about Google here is deliberate: this button belongs to Google's
+     * own card, next to the fields it validates.
      */
-    public function verifyDrive(AppSettings $settings, CloudFiles $files): void
+    public function verifyDrive(AppSettings $settings, GoogleFolders $folders): void
     {
         if (! $settings->isDriveConnected()) {
             Flux::toast(variant: 'danger', text: __('ui.validation.drive.not_connected'));
@@ -188,12 +193,12 @@ final class EditSettings extends Component
             'driveExpenseFolder' => $this->driveFolderRules(),
         ]);
 
-        $resolver = new GoogleDestinations($files, $this->driveConfig());
+        $destinations = new GoogleDestinations($folders, $this->driveConfig());
         $year = (int) now()->format('Y');
 
         try {
-            $resolver->folderIdFor(TypeLetter::Income, "{$year}-01-01");
-            $resolver->folderIdFor(TypeLetter::Expense, "{$year}-01-01");
+            $destinations->destinationFor(TypeLetter::Income, "{$year}-01-01");
+            $destinations->destinationFor(TypeLetter::Expense, "{$year}-01-01");
         } catch (CloudException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
 

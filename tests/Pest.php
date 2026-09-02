@@ -1,7 +1,10 @@
 <?php
 
 use App\Cfdi\Parsing\PdfTextExtractor;
+use App\Cloud\Contracts\CloudDestinations;
 use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Google\Contracts\GoogleFolders;
+use App\Cloud\Google\GoogleDestinations;
 use App\Cloud\Google\GoogleDriveConfig;
 use App\Models\Document;
 use App\Support\AppSettings;
@@ -27,7 +30,7 @@ pest()->extend(TestCase::class)
     ->beforeEach(function (): void {
         Storage::fake(Document::DISK);
 
-        app()->instance(CloudFiles::class, new FakeCloudFiles);
+        bindFakeCloud(new FakeCloudFiles);
 
         // Belt and braces: any HTTP request that is not explicitly faked throws
         // instead of leaving the machine.
@@ -87,6 +90,23 @@ function fakePdfText(string $text): void
 }
 
 /**
+ * Points every cloud seam at the same in-memory provider.
+ *
+ * `CloudDestinations` is bound too, and not left to the container: it would
+ * otherwise resolve a real `GoogleCloudFiles` to look folders up, which is a
+ * second way out to the network.
+ */
+function bindFakeCloud(FakeCloudFiles $files): void
+{
+    app()->instance(CloudFiles::class, $files);
+    app()->instance(GoogleFolders::class, $files);
+    app()->bind(CloudDestinations::class, fn (): GoogleDestinations => new GoogleDestinations(
+        $files,
+        app(AppSettings::class)->drive(),
+    ));
+}
+
+/**
  * Turns the Drive integration on with a connected account, and returns the fake
  * the container will hand to `CloudSync`.
  */
@@ -94,7 +114,7 @@ function fakeDrive(?FakeCloudFiles $files = null): FakeCloudFiles
 {
     $files ??= new FakeCloudFiles;
 
-    app()->instance(CloudFiles::class, $files);
+    bindFakeCloud($files);
 
     $settings = app(AppSettings::class);
     $settings->setDrive(new GoogleDriveConfig(

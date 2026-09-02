@@ -37,7 +37,7 @@ final class CloudAccount
         }
 
         try {
-            $email = $this->files->accountEmail();
+            $email = $this->files->accountLabel();
         } catch (CloudException) {
             // Cosmetic: the integration works fine without knowing the address,
             // so this must never surface as an error.

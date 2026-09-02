@@ -3,19 +3,16 @@
 namespace App\Cloud\Google;
 
 use App\Cfdi\Data\TypeLetter;
-use App\Cloud\Contracts\CloudFiles;
+use App\Cloud\Contracts\CloudDestinations;
+use App\Cloud\Data\CloudDestination;
 use App\Cloud\Exceptions\CloudDestinationUnknownException;
+use App\Cloud\Google\Contracts\GoogleFolders;
 
 /**
- * Turns "what kind of CFDI is this, and when was it issued" into the id of the
- * Drive folder it belongs in.
- *
- * The two coordinates are the ones the processor already produces: the issue
- * date gives the year, and `TypeLetter` says which of the two folders of that
- * year -- income means the user's RFC is the issuer, so the invoice was one they
- * emitted.
+ * Drive's answer to "where does this file go": the id of the year folder it
+ * belongs in, created on the spot when the user does not have it yet.
  */
-final class GoogleDestinations
+final class GoogleDestinations implements CloudDestinations
 {
     /**
      * Folder name => Drive id, for the lifetime of one sync.
@@ -28,7 +25,7 @@ final class GoogleDestinations
     private array $resolved = [];
 
     public function __construct(
-        private readonly CloudFiles $files,
+        private readonly GoogleFolders $folders,
         private readonly GoogleDriveConfig $config,
     ) {}
 
@@ -36,14 +33,17 @@ final class GoogleDestinations
      * @throws CloudDestinationUnknownException when there is no folder this file
      *                                          could belong to
      */
-    public function folderIdFor(TypeLetter $type, ?string $issuedOn): string
+    public function destinationFor(TypeLetter $type, ?string $issuedOn): CloudDestination
     {
         $name = $this->folderNameFor($type, $issuedOn);
 
-        return $this->resolved[$name] ??= $this->files->ensureFolder($this->config->rootFolderId, $name);
+        return new CloudDestination(
+            handle: $this->resolved[$name] ??= $this->folders->ensureFolder($this->config->rootFolderId, $name),
+            label: $name,
+        );
     }
 
-    public function folderNameFor(TypeLetter $type, ?string $issuedOn): string
+    private function folderNameFor(TypeLetter $type, ?string $issuedOn): string
     {
         return (new GoogleFolderTemplate($this->templateFor($type)))->render($this->yearOf($issuedOn));
     }
